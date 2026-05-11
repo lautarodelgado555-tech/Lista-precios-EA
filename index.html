@@ -220,8 +220,77 @@ tr:hover td{background:var(--bg3)}
     </div>
   </div>
   <div id="admin-content" style="display:none">
-    
+    <div class="card">
+      <h3>Configuración global</h3>
+      <div class="admin-grid">
+        <div class="adm-f"><label>% Recargo default</label><input type="number" id="cfg-recargo" value="75" min="0"></div>
+        <div class="adm-f"><label>Tipo de cambio BNA</label><input type="number" id="cfg-tc" value="1415" min="1"></div>
+        <div class="adm-f"><label>Contraseña admin</label><input type="password" id="cfg-pwd" placeholder="Nueva contraseña"></div>
+      </div>
+      <button class="btn pri" onclick="saveConfig()">Guardar configuración</button>
     </div>
+    <div class="card">
+      <h3>Agregar producto</h3>
+      <div class="admin-grid">
+        <div class="adm-f" style="grid-column:span 2"><label>Descripción</label><input type="text" id="nd" placeholder="Nombre del producto"></div>
+        <div class="adm-f"><label>Marca</label><select id="nm"></select></div>
+        <div class="adm-f"><label>Precio lista</label><input type="number" id="np" placeholder="0" step="0.01"></div>
+        <div class="adm-f"><label>Moneda</label>
+          <select id="nmon"><option value="ARS">ARS</option><option value="USD">USD</option></select>
+        </div>
+        <div class="adm-f"><label>Ajuste de cálculo</label>
+          <select id="naj">
+            <option value="none">Solo recargo</option>
+            <option value="trefilcon">-35% + recargo (TREFILCON)</option>
+            <option value="varkaus">-60% + IVA 21% + recargo (VARKAUS)</option>
+            <option value="puente">+IVA 21% + recargo (Puente Montajes)</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn pri" onclick="addProd()">+ Agregar producto</button>
+    </div>
+    <div class="card">
+      <h3>Actualización masiva de precios</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Aplicá un ajuste porcentual a un grupo de productos filtrados por marca y/o palabra clave.</p>
+      <div class="admin-grid">
+        <div class="adm-f"><label>Filtrar por marca</label>
+          <select id="bulk-marca"><option value="">Todas las marcas</option></select>
+        </div>
+        <div class="adm-f"><label>Filtrar por palabra clave (opcional)</label>
+          <input type="text" id="bulk-q" placeholder="Ej: cable, lampara...">
+        </div>
+        <div class="adm-f"><label>% de ajuste (positivo sube, negativo baja)</label>
+          <input type="number" id="bulk-pct" placeholder="Ej: 5 para subir 5%" step="0.1">
+        </div>
+      </div>
+      <div id="bulk-preview" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+      <button class="btn" onclick="previewBulk()">Vista previa</button>
+      <button class="btn pri" id="bulk-apply-btn" onclick="applyBulk()" style="display:none;margin-left:8px">Aplicar ajuste</button>
+    </div>
+    <div class="card">
+      <h3>Importar lista de precios desde Excel</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">
+        El Excel debe tener columnas de descripción y precio. Si tiene una columna "marca" se usa automáticamente.<br>
+        Si no, podés ingresar una marca fija abajo. El ajuste de cálculo se aplica a todos los productos importados.
+      </p>
+      <div class="adm-f" style="margin-bottom:10px">
+        <label>Marca a asignar (opcional — dejar vacío si el Excel ya tiene columna "marca")</label>
+        <input type="text" id="import-marca" placeholder="Ej: CAMBRE (dejar vacío si el Excel tiene columna marca)" style="height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);font-size:13px;width:340px">
+      </div>
+      <div class="adm-f" style="margin-bottom:10px">
+        <label>Ajuste de cálculo para todos los productos importados</label>
+        <select id="import-ajuste" style="width:260px">
+          <option value="none">Solo recargo</option>
+          <option value="trefilcon">-35% + recargo (TREFILCON)</option>
+          <option value="varkaus">-60% + IVA 21% + recargo (VARKAUS)</option>
+          <option value="puente">+IVA 21% + recargo (Puente Montajes)</option>
+        </select>
+      </div>
+      <input type="file" id="excel-file" accept=".xlsx,.xls" style="margin-bottom:10px" onchange="previewExcel(this)">
+      <div id="excel-preview" style="font-size:12px;margin-bottom:10px;color:var(--text2)"></div>
+      <button class="btn pri" id="import-btn" onclick="importExcel()" style="display:none">Importar productos</button>
+    </div>
+  </div>
   </div>
 </div>
 
@@ -408,9 +477,11 @@ function renderPres() {
         </td>
         <td><span class="badge" style="background:#f0f0f0;color:#666">Manual</span></td>
         <td class="price" style="font-size:12px">
-          <input type="number" value="${row.manualPrecio||0}" min="0" step="1"
-            onchange="setManualPrecio(${i},this.value)"
-            style="width:90px;height:26px;padding:0 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;text-align:right">
+          <input type="number" value="${row.manualPrecio||0}" min="0" step="100"
+            oninput="setManualPrecio(${i},this.value)"
+            onclick="this.select()"
+            placeholder="Precio..."
+            style="width:120px;height:28px;padding:0 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text);font-size:13px;text-align:right">
         </td>
         <td style="text-align:center">
           <input type="number" value="${row.qty}" min="1" onchange="setQty(${i},this.value)">
@@ -860,11 +931,12 @@ async function applyBulk() {
 
 function renderAdmin() {
   if (!adminUnlocked) return;
-  const q = (document.getElementById('qa').value || '').toLowerCase();
-  const m = document.getElementById('ma').value;
+  const q = (document.getElementById('qa')?.value || '').toLowerCase();
+  const m = document.getElementById('ma')?.value || '';
   const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
   document.getElementById('acnt').textContent = products.length;
   const tb = document.getElementById('tb-a');
+  if (!tb) return;
   if (!list.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No hay productos</td></tr>'; return; }
   tb.innerHTML = list.map(p => `<tr id="row-${p.id}">
     <td style="font-size:12px" id="desc-${p.id}">${p.descripcion}</td>
