@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lista de Precios — Local Eléctrico</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#111;font-size:14px}
@@ -80,7 +81,7 @@ tr:hover td{background:#fafafa}
 </style>
 </head>
 <body>
- 
+
 <header>
   <h1>⚡ Lista de Precios</h1>
   <nav>
@@ -89,7 +90,7 @@ tr:hover td{background:#fafafa}
     <button onclick="showPage('admin')">Admin</button>
   </nav>
 </header>
- 
+
 <div id="page-lista" class="page active">
   <div class="cfg">
     <label>Recargo</label>
@@ -125,7 +126,7 @@ tr:hover td{background:#fafafa}
     </div>
   </div>
 </div>
- 
+
 <div id="page-pres" class="page">
   <div class="cfg">
     <label>Recargo</label>
@@ -151,7 +152,8 @@ tr:hover td{background:#fafafa}
     <tbody id="tb-p"></tbody></table>
   </div>
   <div class="row-btns" style="margin-bottom:12px">
-    <button class="btn" onclick="addRow()">+ Agregar ítem</button>
+    <button class="btn" onclick="addRow(false)">+ Buscar producto</button>
+    <button class="btn" onclick="addRow(true)" style="border-color:#d97706;color:#d97706">+ Ítem manual</button>
     <button class="btn" onclick="clearPres()">🗑 Limpiar</button>
     <button class="btn" onclick="savePres()">💾 Guardar</button>
     <button class="btn pri" onclick="printPres()">🖨 Imprimir</button>
@@ -166,7 +168,7 @@ tr:hover td{background:#fafafa}
     <div><div class="tl">TOTAL</div><div class="tv big" id="tot">$0</div></div>
   </div>
 </div>
- 
+
 <div id="page-admin" class="page">
   <div id="admin-lock" class="card">
     <div class="admin-pass">
@@ -210,6 +212,54 @@ tr:hover td{background:#fafafa}
       <button class="btn pri" onclick="addProd()">+ Agregar producto</button>
     </div>
     <div class="card">
+      <h3>Importar lista de precios desde Excel</h3>
+      <p style="font-size:12px;color:#666;margin-bottom:10px">
+        Subí un archivo Excel con columnas: <strong>descripcion</strong>, <strong>precio_lista</strong>, <strong>moneda</strong> (ARS/USD), <strong>ajuste</strong> (none/trefilcon/varkaus).<br>
+        Los productos se agregarán a la base de datos. Los existentes con el mismo nombre se actualizarán.
+      </p>
+      <div class="adm-f" style="margin-bottom:10px">
+        <label>Marca a asignar a todos los productos importados</label>
+        <select id="import-marca" style="width:200px">
+          <option>TREFILCON</option><option>VARKAUS</option><option>RBC SITEL</option>
+          <option>CANDELA</option><option>SICA</option><option>MACROLED</option>
+        </select>
+      </div>
+      <div class="adm-f" style="margin-bottom:10px">
+        <label>Ajuste de cálculo para todos los productos importados</label>
+        <select id="import-ajuste" style="width:260px">
+          <option value="none">Solo recargo</option>
+          <option value="trefilcon">-35% + recargo (TREFILCON)</option>
+          <option value="varkaus">-60% + IVA 21% + recargo (VARKAUS)</option>
+        </select>
+      </div>
+      <input type="file" id="excel-file" accept=".xlsx,.xls" style="margin-bottom:10px"
+        onchange="previewExcel(this)">
+      <div id="excel-preview" style="font-size:12px;margin-bottom:10px"></div>
+      <button class="btn pri" id="import-btn" onclick="importExcel()" style="display:none">Importar productos</button>
+    </div>
+    <div class="card">
+      <h3>Actualización masiva de precios</h3>
+      <p style="font-size:12px;color:#666;margin-bottom:12px">Aplicá un ajuste porcentual a un grupo de productos filtrados por marca y/o palabra clave.</p>
+      <div class="admin-grid">
+        <div class="adm-f"><label>Filtrar por marca</label>
+          <select id="bulk-marca">
+            <option value="">Todas las marcas</option>
+            <option>TREFILCON</option><option>VARKAUS</option><option>RBC SITEL</option>
+            <option>CANDELA</option><option>SICA</option><option>MACROLED</option>
+          </select>
+        </div>
+        <div class="adm-f"><label>Filtrar por palabra clave (opcional)</label>
+          <input type="text" id="bulk-q" placeholder="Ej: cable, lampara...">
+        </div>
+        <div class="adm-f"><label>% de ajuste (positivo sube, negativo baja)</label>
+          <input type="number" id="bulk-pct" placeholder="Ej: 5 para subir 5%" step="0.1">
+        </div>
+      </div>
+      <div id="bulk-preview" style="font-size:12px;color:#666;margin-bottom:10px"></div>
+      <button class="btn" onclick="previewBulk()">Vista previa</button>
+      <button class="btn pri" id="bulk-apply-btn" onclick="applyBulk()" style="display:none;margin-left:8px">Aplicar ajuste</button>
+    </div>
+    <div class="card">
       <h3>Productos (<span id="acnt">0</span>)</h3>
       <div class="toolbar" style="margin-bottom:10px">
         <input type="text" id="qa" placeholder="Buscar para eliminar..." oninput="renderAdmin()">
@@ -235,28 +285,28 @@ tr:hover td{background:#fafafa}
     </div>
   </div>
 </div>
- 
+
 <div class="toast" id="toast"></div>
- 
+
 <script>
 const SUPA_URL = 'https://katzleavapthehccllbw.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImthdHpsZWF2YXB0aGVoY2NsbGJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NDYzMjAsImV4cCI6MjA5NDAyMjMyMH0.pe8wTkvu46Pxgruqa6DqDrGpW-zkl_xJfFudlqSoh6s';
 const ADMIN_PWD = 'electrico2026';
- 
+
 const { createClient } = supabase;
 const db = createClient(SUPA_URL, SUPA_KEY);
- 
+
 let products = [];
 let presRows = [];
 let cfg = { recargo: 75, tc: 1415 };
 let adminUnlocked = false;
 let filteredProducts = [];
- 
+
 function badge(m) {
   const cls = { TREFILCON:'b-TREFILCON', VARKAUS:'b-VARKAUS', 'RBC SITEL':'b-RBC', CANDELA:'b-CANDELA', SICA:'b-SICA', MACROLED:'b-MACROLED' };
   return `<span class="badge ${cls[m]||''}">${m}</span>`;
 }
- 
+
 function calcFinal(p) {
   const r = cfg.recargo / 100, tc = cfg.tc;
   let b = parseFloat(p.precio_lista);
@@ -266,14 +316,14 @@ function calcFinal(p) {
   if (p.moneda === 'USD') b = b * tc;
   return b;
 }
- 
+
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
 function fmtL(p) {
   return p.moneda === 'USD'
     ? 'USD ' + parseFloat(p.precio_lista).toFixed(2)
     : '$' + Math.round(p.precio_lista).toLocaleString('es-AR');
 }
- 
+
 function toast(msg, ok=true) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -281,7 +331,7 @@ function toast(msg, ok=true) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
- 
+
 async function loadAll() {
   try {
     // Load ALL products with pagination (Supabase returns max 1000 per request)
@@ -298,7 +348,7 @@ async function loadAll() {
       from += pageSize;
     }
     products = allProducts;
- 
+
     const cfgRes = await db.from('configuracion').select('*').eq('id', 1).single();
     if (cfgRes.data) {
       cfg.recargo = parseFloat(cfgRes.data.recargo);
@@ -313,12 +363,12 @@ async function loadAll() {
     toast('Error cargando datos: ' + e.message, false);
   }
 }
- 
+
 function applyConfig() {
   ['r-l','r-p'].forEach(id => document.getElementById(id).value = cfg.recargo);
   ['tc-l','tc-p'].forEach(id => document.getElementById(id).value = cfg.tc);
 }
- 
+
 function cfgChange(src) {
   const r = src === 'l' ? 'r-l' : 'r-p';
   const t = src === 'l' ? 'tc-l' : 'tc-p';
@@ -328,13 +378,13 @@ function cfgChange(src) {
   renderLista();
   renderPres();
 }
- 
+
 function getFiltered() {
   const q = (document.getElementById('q-l').value || '').toLowerCase();
   const m = document.getElementById('m-l').value;
   return products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m));
 }
- 
+
 function renderLista() {
   filteredProducts = getFiltered();
   const show = filteredProducts.slice(0, 300);
@@ -352,7 +402,7 @@ function renderLista() {
     <td style="text-align:center"><button class="add-btn" onclick="addFromLista(${p.id})">+</button></td>
   </tr>`).join('');
 }
- 
+
 function addFromLista(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
@@ -362,7 +412,7 @@ function addFromLista(id) {
   showPage('pres');
   toast(`${p.descripcion.substring(0, 40)}... agregado al presupuesto`);
 }
- 
+
 function renderPres() {
   const tb = document.getElementById('tb-p');
   if (!presRows.length) {
@@ -370,8 +420,29 @@ function renderPres() {
     calcTot(); return;
   }
   tb.innerHTML = presRows.map((row, i) => {
-    const p = products.find(x => x.id === row.pid);
-    const fin = p ? calcFinal(p) : 0;
+    const p = row.manual ? null : products.find(x => x.id === row.pid);
+    const fin = row.manual ? (parseFloat(row.manualPrecio)||0) : (p ? calcFinal(p) : 0);
+    const imp = fin * (parseInt(row.qty)||1);
+    if (row.manual) {
+      return `<tr style="background:#fffbf0">
+        <td>
+          <input class="ac-input" type="text" value="${row.manualDesc||''}"
+            placeholder="Descripción del producto..."
+            oninput="setManualDesc(${i},this.value)" style="width:100%">
+        </td>
+        <td><span class="badge" style="background:#f0f0f0;color:#666">Manual</span></td>
+        <td class="price" style="font-size:12px">
+          <input type="number" value="${row.manualPrecio||0}" min="0" step="1"
+            onchange="setManualPrecio(${i},this.value)"
+            style="width:90px;height:26px;padding:0 4px;border:1px solid #ddd;border-radius:4px;font-size:12px;text-align:right">
+        </td>
+        <td style="text-align:center">
+          <input type="number" value="${row.qty}" min="1" onchange="setQty(${i},this.value)">
+        </td>
+        <td class="price" style="font-size:12px">${fmt(imp)}</td>
+        <td style="text-align:center"><button class="del" onclick="delRow(${i})">✕</button></td>
+      </tr>`;
+    }
     return `<tr>
       <td>
         <div class="ac-wrap" id="aw${i}">
@@ -394,7 +465,7 @@ function renderPres() {
   }).join('');
   calcTot();
 }
- 
+
 function acSearch(i, q) {
   const inp = document.querySelector('#aw' + i + ' .ac-input');
   const drop = document.getElementById('ad' + i);
@@ -423,32 +494,44 @@ function acSel(i, pid) {
 }
 function setQty(i, v) { presRows[i].qty = Math.max(1, parseInt(v) || 1); savePres(); renderPres(); }
 function delRow(i) { presRows.splice(i, 1); savePres(); renderPres(); }
-function addRow() { presRows.push({ rid: Date.now(), pid: null, qty: 1 }); savePres(); renderPres(); }
+function addRow(manual=false) {
+  presRows.push({ rid: Date.now(), pid: null, qty: 1, manual: manual, manualDesc: '', manualPrecio: 0 });
+  savePres(); renderPres();
+}
 function clearPres() { if (presRows.length && !confirm('¿Limpiar presupuesto?')) return; presRows = []; savePres(); renderPres(); }
 function savePres() { localStorage.setItem('presRows', JSON.stringify(presRows)); }
- 
+
 async function savePresSupa() {
   const cli = document.getElementById('cli').value || '';
   const dPct = parseFloat(document.getElementById('dsc').value) || 0;
   let sub = 0;
-  presRows.forEach(r => { const p = products.find(x => x.id === r.pid); if (p) sub += calcFinal(p) * r.qty; });
+  presRows.forEach(r => {
+    if (r.manual) { sub += (parseFloat(r.manualPrecio)||0) * (parseInt(r.qty)||1); }
+    else { const p = products.find(x => x.id === r.pid); if (p) sub += calcFinal(p) * r.qty; }
+  });
   const total = sub - sub * dPct / 100;
   try {
     await db.from('presupuestos').insert({ cliente: cli, items: presRows, descuento: dPct, total });
     toast('Presupuesto guardado');
   } catch(e) { toast('Error al guardar', false); }
 }
- 
+
+function setManualDesc(i, v) { presRows[i].manualDesc = v; savePres(); calcTot(); }
+function setManualPrecio(i, v) { presRows[i].manualPrecio = parseFloat(v)||0; savePres(); calcTot(); }
+
 function calcTot() {
   let sub = 0;
-  presRows.forEach(r => { const p = products.find(x => x.id === r.pid); if (p) sub += calcFinal(p) * r.qty; });
+  presRows.forEach(r => {
+    if (r.manual) { sub += (parseFloat(r.manualPrecio)||0) * (parseInt(r.qty)||1); }
+    else { const p = products.find(x => x.id === r.pid); if (p) sub += calcFinal(p) * r.qty; }
+  });
   const dPct = parseFloat(document.getElementById('dsc').value) || 0;
   const dM = sub * dPct / 100;
   document.getElementById('sub').textContent = fmt(sub);
   document.getElementById('dm').textContent = '-' + fmt(dM);
   document.getElementById('tot').textContent = fmt(sub - dM);
 }
- 
+
 function printPres() {
   const cli = document.getElementById('cli').value || '—';
   const fecha = new Date().toLocaleDateString('es-AR');
@@ -456,10 +539,11 @@ function printPres() {
   let sub = 0;
   const rows = presRows.filter(r => r.pid);
   const items = rows.map(r => {
-    const p = products.find(x => x.id === r.pid);
-    const fin = p ? calcFinal(p) : 0;
+    let desc, fin;
+    if (r.manual) { desc = r.manualDesc || '(sin descripción)'; fin = parseFloat(r.manualPrecio)||0; }
+    else { const p = products.find(x => x.id === r.pid); desc = p ? p.descripcion : ''; fin = p ? calcFinal(p) : 0; }
     sub += fin * r.qty;
-    return `<tr><td>${p ? p.descripcion : ''}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${fmt(fin)}</td><td style="text-align:right">${fmt(fin * r.qty)}</td></tr>`;
+    return `<tr><td>${desc}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${fmt(fin)}</td><td style="text-align:right">${fmt(fin * r.qty)}</td></tr>`;
   }).join('');
   const dM = sub * dPct / 100;
   const tot = sub - dM;
@@ -484,7 +568,7 @@ function printPres() {
   </div></body></html>`);
   w.document.close(); w.print();
 }
- 
+
 function checkPwd() {
   const pwd = document.getElementById('admin-pwd').value;
   const stored = localStorage.getItem('adminPwd') || ADMIN_PWD;
@@ -498,7 +582,7 @@ function checkPwd() {
     document.getElementById('pwd-err').style.display = 'block';
   }
 }
- 
+
 async function loadAdminConfig() {
   try {
     const r = await db.from('configuracion').select('*').eq('id', 1).single();
@@ -508,7 +592,7 @@ async function loadAdminConfig() {
     }
   } catch(e) {}
 }
- 
+
 async function saveConfig() {
   const recargo = parseFloat(document.getElementById('cfg-recargo').value) || 75;
   const tc = parseFloat(document.getElementById('cfg-tc').value) || 1415;
@@ -522,7 +606,7 @@ async function saveConfig() {
     renderLista(); renderPres();
   } catch(e) { toast('Error: ' + e.message, false); }
 }
- 
+
 async function addProd() {
   const desc = document.getElementById('nd').value.trim();
   const precio = parseFloat(document.getElementById('np').value);
@@ -540,7 +624,7 @@ async function addProd() {
     renderAdmin(); renderLista();
   } catch(e) { toast('Error: ' + e.message, false); }
 }
- 
+
 async function delProd(id) {
   if (!confirm('¿Eliminar este producto?')) return;
   try {
@@ -550,7 +634,130 @@ async function delProd(id) {
     renderAdmin(); renderLista();
   } catch(e) { toast('Error: ' + e.message, false); }
 }
- 
+
+let excelData = [];
+
+function previewExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+      if (!rows.length) { document.getElementById('excel-preview').textContent = 'El archivo está vacío.'; return; }
+      // Try to auto-detect columns
+      const sample = rows[0];
+      const keys = Object.keys(sample);
+      // Find price column: look for numeric column
+      const priceCol = keys.find(k => k.toLowerCase().includes('precio') || k.toLowerCase().includes('price') || k.toLowerCase().includes('lista')) || keys.find(k => typeof sample[k] === 'number');
+      const descCol = keys.find(k => k.toLowerCase().includes('desc') || k.toLowerCase().includes('articulo') || k.toLowerCase().includes('nombre') || k.toLowerCase().includes('producto')) || keys[0];
+      excelData = rows
+        .filter(r => r[priceCol] && parseFloat(r[priceCol]) > 0 && r[descCol])
+        .map(r => ({
+          descripcion: String(r[descCol]).trim(),
+          precio_lista: parseFloat(r[priceCol]),
+          moneda: r['moneda'] || r['Moneda'] || 'ARS',
+          ajuste: r['ajuste'] || r['Ajuste'] || document.getElementById('import-ajuste').value
+        }));
+      const prev = document.getElementById('excel-preview');
+      prev.innerHTML = `<strong>${excelData.length} productos detectados</strong> del archivo "${file.name}".<br>
+        Columna descripción: <em>${descCol}</em> | Columna precio: <em>${priceCol}</em><br>
+        Muestra: ${excelData.slice(0,3).map(r => r.descripcion + ' → $' + r.precio_lista).join(' | ')}`;
+      document.getElementById('import-btn').style.display = excelData.length ? 'inline-block' : 'none';
+    } catch(err) {
+      document.getElementById('excel-preview').textContent = 'Error leyendo el archivo: ' + err.message;
+    }
+  };
+  reader.readAsBinaryString(file);
+}
+
+async function importExcel() {
+  if (!excelData.length) return;
+  const marca = document.getElementById('import-marca').value;
+  const ajuste = document.getElementById('import-ajuste').value;
+  if (!confirm(`¿Importar ${excelData.length} productos como marca "${marca}"?`)) return;
+  const btn = document.getElementById('import-btn');
+  btn.textContent = 'Importando...'; btn.disabled = true;
+  let added = 0, updated = 0;
+  const BATCH = 50;
+  const rows = excelData.map(r => ({ ...r, marca, ajuste, activo: true }));
+  for (let i = 0; i < rows.length; i += BATCH) {
+    const batch = rows.slice(i, i + BATCH);
+    // Upsert: if same descripcion+marca exists, update; else insert
+    for (const row of batch) {
+      const existing = products.find(p => p.descripcion === row.descripcion && p.marca === row.marca);
+      if (existing) {
+        await db.from('productos').update({ precio_lista: row.precio_lista, moneda: row.moneda, ajuste: row.ajuste, updated_at: new Date().toISOString() }).eq('id', existing.id);
+        const idx = products.findIndex(p => p.id === existing.id);
+        if (idx >= 0) products[idx].precio_lista = row.precio_lista;
+        updated++;
+      } else {
+        const res = await db.from('productos').insert(row).select().single();
+        if (res.data) products.push(res.data);
+        added++;
+      }
+    }
+    btn.textContent = `Importando... ${added + updated}/${rows.length}`;
+  }
+  btn.textContent = 'Importar productos'; btn.disabled = false;
+  document.getElementById('import-btn').style.display = 'none';
+  document.getElementById('excel-preview').textContent = '';
+  document.getElementById('excel-file').value = '';
+  excelData = [];
+  toast(`✓ ${added} agregados, ${updated} actualizados`);
+  renderAdmin(); renderLista();
+}
+
+let bulkMatches = [];
+
+function previewBulk() {
+  const marca = document.getElementById('bulk-marca').value;
+  const q = document.getElementById('bulk-q').value.toLowerCase();
+  const pct = parseFloat(document.getElementById('bulk-pct').value);
+  if (!pct) { alert('Ingresá un porcentaje de ajuste'); return; }
+  bulkMatches = products.filter(p =>
+    (!marca || p.marca === marca) &&
+    (!q || p.descripcion.toLowerCase().includes(q))
+  );
+  const preview = document.getElementById('bulk-preview');
+  const btn = document.getElementById('bulk-apply-btn');
+  if (!bulkMatches.length) {
+    preview.textContent = 'No se encontraron productos con ese filtro.';
+    btn.style.display = 'none'; return;
+  }
+  const dir = pct > 0 ? 'subirán' : 'bajarán';
+  preview.innerHTML = `<strong>${bulkMatches.length} productos</strong> ${dir} un <strong>${Math.abs(pct)}%</strong>. Ejemplo: ${bulkMatches[0].descripcion} → ${fmt(parseFloat(bulkMatches[0].precio_lista) * (1 + pct/100))} (lista)`;
+  btn.style.display = 'inline-block';
+}
+
+async function applyBulk() {
+  const pct = parseFloat(document.getElementById('bulk-pct').value);
+  if (!confirm(`¿Aplicar ajuste de ${pct}% a ${bulkMatches.length} productos? Esta acción no se puede deshacer.`)) return;
+  const btn = document.getElementById('bulk-apply-btn');
+  btn.textContent = 'Aplicando...'; btn.disabled = true;
+  let updated = 0;
+  const BATCH = 50;
+  for (let i = 0; i < bulkMatches.length; i += BATCH) {
+    const batch = bulkMatches.slice(i, i + BATCH);
+    for (const p of batch) {
+      const newPrecio = parseFloat(p.precio_lista) * (1 + pct/100);
+      await db.from('productos').update({ precio_lista: newPrecio, updated_at: new Date().toISOString() }).eq('id', p.id);
+      const idx = products.findIndex(x => x.id === p.id);
+      if (idx >= 0) products[idx].precio_lista = newPrecio;
+      updated++;
+    }
+    btn.textContent = `Aplicando... ${updated}/${bulkMatches.length}`;
+  }
+  btn.textContent = 'Aplicar ajuste'; btn.disabled = false;
+  btn.style.display = 'none';
+  document.getElementById('bulk-preview').textContent = '';
+  bulkMatches = [];
+  toast(`✓ ${updated} productos actualizados`);
+  renderAdmin(); renderLista();
+}
+
 function renderAdmin() {
   if (!adminUnlocked) return;
   const q = (document.getElementById('qa').value || '').toLowerCase();
@@ -568,7 +775,7 @@ function renderAdmin() {
     <td style="text-align:center"><button class="del" onclick="delProd(${p.id})">🗑</button></td>
   </tr>`).join('');
 }
- 
+
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -578,7 +785,7 @@ function showPage(name) {
   if (name === 'lista') renderLista();
   if (name === 'pres') renderPres();
 }
- 
+
 loadAll();
 </script>
 </body>
