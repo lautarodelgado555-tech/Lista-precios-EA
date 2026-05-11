@@ -61,7 +61,6 @@ tr:hover td{background:var(--bg3)}
 .b-CANDELA{background:#3d2c00;color:#fbbf24}
 .b-SICA{background:#2d1f4f;color:#c084fc}
 .b-MACROLED{background:#3d1a2e;color:#f472b6}
-.b-PUENTE{background:#1a3d2e;color:#34d399}
 .price{text-align:right;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
 .count{font-size:12px;color:var(--text3);margin-bottom:8px}
 .add-btn{background:var(--bg3);border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:3px 10px;font-size:12px;color:var(--text2);transition:all 0.15s}
@@ -147,7 +146,7 @@ tr:hover td{background:var(--bg3)}
     <select id="m-l" onchange="renderLista()">
       <option value="">Todas las marcas</option>
       <option>TREFILCON</option><option>VARKAUS</option><option>RBC SITEL</option>
-      <option>CANDELA</option><option>SICA</option><option>MACROLED</option><option>PUENTE MONTAJES</option>
+      <option>CANDELA</option><option>SICA</option><option>MACROLED</option>
     </select>
   </div>
   <div class="count" id="cnt-l">Cargando productos...</div>
@@ -401,11 +400,43 @@ async function loadAll() {
     }
     const saved = localStorage.getItem('presRows');
     if (saved) presRows = JSON.parse(saved);
+    populateMarcaDropdowns();
     renderLista();
     renderPres();
   } catch(e) {
     toast('Error cargando datos: ' + e.message, false);
   }
+}
+
+function populateMarcaDropdowns() {
+  const marcaSet = new Set(products.map(p => p.marca));
+  const marcas = Array.from(marcaSet).sort();
+  const filterIds = ['m-l', 'm-a', 'bulk-marca'];
+  filterIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="">Todas las marcas</option>';
+    marcas.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      el.appendChild(opt);
+    });
+    el.value = cur;
+  });
+  // New product & import marca selects
+  ['nm','import-marca'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '';
+    marcas.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      el.appendChild(opt);
+    });
+    if (cur) el.value = cur;
+  });
 }
 
 function applyConfig() {
@@ -675,6 +706,7 @@ function checkPwd() {
     document.getElementById('admin-lock').style.display = 'none';
     document.getElementById('admin-content').style.display = 'block';
     adminUnlocked = true;
+    populateMarcaDropdowns();
     renderAdmin();
     loadAdminConfig();
   } else {
