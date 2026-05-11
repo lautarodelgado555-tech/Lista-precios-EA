@@ -23,7 +23,7 @@ nav button.active{background:rgba(255,255,255,0.2);font-weight:500}
 .toolbar input[type=text]{flex:1;min-width:180px;height:34px;padding:0 12px;border:1px solid #ddd;border-radius:6px;font-size:13px}
 .toolbar select{height:34px;padding:0 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff}
 .tbl-wrap{background:#fff;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden}
-.tbl-scroll{max-height:500px;overflow-y:auto}
+.tbl-scroll{max-height:500px;overflow-y:auto;overflow-x:hidden}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;padding:9px 12px;border-bottom:1px solid #e5e5e5;color:#666;font-weight:500;font-size:11px;position:sticky;top:0;background:#fafafa;z-index:1}
 td{padding:8px 12px;border-bottom:1px solid #f0f0f0}
@@ -59,7 +59,7 @@ tr:hover td{background:#fafafa}
 /* Autocomplete */
 .ac-wrap{position:relative}
 .ac-input{width:100%;height:28px;padding:0 8px;border:1px solid #ddd;border-radius:4px;font-size:12px}
-.ac-drop{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:6px;z-index:500;max-height:240px;overflow-y:auto;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+.ac-drop{position:fixed;background:#fff;border:1px solid #ddd;border-radius:6px;z-index:9999;max-height:240px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.15)}
 .ac-item{padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:12px}
 .ac-item:hover,.ac-item.hi{background:#f0f7ff}
 .ac-desc{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -80,7 +80,7 @@ tr:hover td{background:#fafafa}
 </style>
 </head>
 <body>
-
+ 
 <header>
   <h1>⚡ Lista de Precios</h1>
   <nav>
@@ -89,7 +89,7 @@ tr:hover td{background:#fafafa}
     <button onclick="showPage('admin')">Admin</button>
   </nav>
 </header>
-
+ 
 <div id="page-lista" class="page active">
   <div class="cfg">
     <label>Recargo</label>
@@ -125,7 +125,7 @@ tr:hover td{background:#fafafa}
     </div>
   </div>
 </div>
-
+ 
 <div id="page-pres" class="page">
   <div class="cfg">
     <label>Recargo</label>
@@ -166,7 +166,7 @@ tr:hover td{background:#fafafa}
     <div><div class="tl">TOTAL</div><div class="tv big" id="tot">$0</div></div>
   </div>
 </div>
-
+ 
 <div id="page-admin" class="page">
   <div id="admin-lock" class="card">
     <div class="admin-pass">
@@ -235,28 +235,28 @@ tr:hover td{background:#fafafa}
     </div>
   </div>
 </div>
-
+ 
 <div class="toast" id="toast"></div>
-
+ 
 <script>
 const SUPA_URL = 'https://katzleavapthehccllbw.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImthdHpsZWF2YXB0aGVoY2NsbGJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NDYzMjAsImV4cCI6MjA5NDAyMjMyMH0.pe8wTkvu46Pxgruqa6DqDrGpW-zkl_xJfFudlqSoh6s';
 const ADMIN_PWD = 'electrico2026';
-
+ 
 const { createClient } = supabase;
 const db = createClient(SUPA_URL, SUPA_KEY);
-
+ 
 let products = [];
 let presRows = [];
 let cfg = { recargo: 75, tc: 1415 };
 let adminUnlocked = false;
 let filteredProducts = [];
-
+ 
 function badge(m) {
   const cls = { TREFILCON:'b-TREFILCON', VARKAUS:'b-VARKAUS', 'RBC SITEL':'b-RBC', CANDELA:'b-CANDELA', SICA:'b-SICA', MACROLED:'b-MACROLED' };
   return `<span class="badge ${cls[m]||''}">${m}</span>`;
 }
-
+ 
 function calcFinal(p) {
   const r = cfg.recargo / 100, tc = cfg.tc;
   let b = parseFloat(p.precio_lista);
@@ -266,14 +266,14 @@ function calcFinal(p) {
   if (p.moneda === 'USD') b = b * tc;
   return b;
 }
-
+ 
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
 function fmtL(p) {
   return p.moneda === 'USD'
     ? 'USD ' + parseFloat(p.precio_lista).toFixed(2)
     : '$' + Math.round(p.precio_lista).toLocaleString('es-AR');
 }
-
+ 
 function toast(msg, ok=true) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -281,14 +281,25 @@ function toast(msg, ok=true) {
   t.classList.add('show');
   setTimeout(() => t.classList.remove('show'), 2500);
 }
-
+ 
 async function loadAll() {
   try {
-    const [prodRes, cfgRes] = await Promise.all([
-      db.from('productos').select('*').eq('activo', true).order('marca').order('descripcion'),
-      db.from('configuracion').select('*').eq('id', 1).single()
-    ]);
-    if (prodRes.data) products = prodRes.data;
+    // Load ALL products with pagination (Supabase returns max 1000 per request)
+    let allProducts = [];
+    let from = 0;
+    const pageSize = 1000;
+    while (true) {
+      const res = await db.from('productos').select('*').eq('activo', true)
+        .order('marca').order('descripcion')
+        .range(from, from + pageSize - 1);
+      if (res.error) throw res.error;
+      allProducts = allProducts.concat(res.data || []);
+      if (!res.data || res.data.length < pageSize) break;
+      from += pageSize;
+    }
+    products = allProducts;
+ 
+    const cfgRes = await db.from('configuracion').select('*').eq('id', 1).single();
     if (cfgRes.data) {
       cfg.recargo = parseFloat(cfgRes.data.recargo);
       cfg.tc = parseFloat(cfgRes.data.tipo_cambio);
@@ -302,12 +313,12 @@ async function loadAll() {
     toast('Error cargando datos: ' + e.message, false);
   }
 }
-
+ 
 function applyConfig() {
   ['r-l','r-p'].forEach(id => document.getElementById(id).value = cfg.recargo);
   ['tc-l','tc-p'].forEach(id => document.getElementById(id).value = cfg.tc);
 }
-
+ 
 function cfgChange(src) {
   const r = src === 'l' ? 'r-l' : 'r-p';
   const t = src === 'l' ? 'tc-l' : 'tc-p';
@@ -317,13 +328,13 @@ function cfgChange(src) {
   renderLista();
   renderPres();
 }
-
+ 
 function getFiltered() {
   const q = (document.getElementById('q-l').value || '').toLowerCase();
   const m = document.getElementById('m-l').value;
   return products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m));
 }
-
+ 
 function renderLista() {
   filteredProducts = getFiltered();
   const show = filteredProducts.slice(0, 300);
@@ -341,7 +352,7 @@ function renderLista() {
     <td style="text-align:center"><button class="add-btn" onclick="addFromLista(${p.id})">+</button></td>
   </tr>`).join('');
 }
-
+ 
 function addFromLista(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
@@ -351,7 +362,7 @@ function addFromLista(id) {
   showPage('pres');
   toast(`${p.descripcion.substring(0, 40)}... agregado al presupuesto`);
 }
-
+ 
 function renderPres() {
   const tb = document.getElementById('tb-p');
   if (!presRows.length) {
@@ -383,8 +394,9 @@ function renderPres() {
   }).join('');
   calcTot();
 }
-
+ 
 function acSearch(i, q) {
+  const inp = document.querySelector('#aw' + i + ' .ac-input');
   const drop = document.getElementById('ad' + i);
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const matches = products.filter(p => p.descripcion.toLowerCase().includes(q.toLowerCase())).slice(0, 15);
@@ -393,6 +405,15 @@ function acSearch(i, q) {
     <span class="ac-desc">${p.descripcion}</span>
     <span class="ac-px">${fmt(calcFinal(p))}</span>
   </div>`).join('');
+  // Position dropdown using fixed coords to escape table overflow clipping
+  if (inp) {
+    const rect = inp.getBoundingClientRect();
+    drop.style.position = 'fixed';
+    drop.style.top = (rect.bottom + 2) + 'px';
+    drop.style.left = rect.left + 'px';
+    drop.style.width = rect.width + 'px';
+    drop.style.zIndex = '9999';
+  }
   drop.style.display = 'block';
 }
 function acClose(i) { const d = document.getElementById('ad' + i); if (d) d.style.display = 'none'; }
@@ -405,7 +426,7 @@ function delRow(i) { presRows.splice(i, 1); savePres(); renderPres(); }
 function addRow() { presRows.push({ rid: Date.now(), pid: null, qty: 1 }); savePres(); renderPres(); }
 function clearPres() { if (presRows.length && !confirm('¿Limpiar presupuesto?')) return; presRows = []; savePres(); renderPres(); }
 function savePres() { localStorage.setItem('presRows', JSON.stringify(presRows)); }
-
+ 
 async function savePresSupa() {
   const cli = document.getElementById('cli').value || '';
   const dPct = parseFloat(document.getElementById('dsc').value) || 0;
@@ -417,7 +438,7 @@ async function savePresSupa() {
     toast('Presupuesto guardado');
   } catch(e) { toast('Error al guardar', false); }
 }
-
+ 
 function calcTot() {
   let sub = 0;
   presRows.forEach(r => { const p = products.find(x => x.id === r.pid); if (p) sub += calcFinal(p) * r.qty; });
@@ -427,7 +448,7 @@ function calcTot() {
   document.getElementById('dm').textContent = '-' + fmt(dM);
   document.getElementById('tot').textContent = fmt(sub - dM);
 }
-
+ 
 function printPres() {
   const cli = document.getElementById('cli').value || '—';
   const fecha = new Date().toLocaleDateString('es-AR');
@@ -463,7 +484,7 @@ function printPres() {
   </div></body></html>`);
   w.document.close(); w.print();
 }
-
+ 
 function checkPwd() {
   const pwd = document.getElementById('admin-pwd').value;
   const stored = localStorage.getItem('adminPwd') || ADMIN_PWD;
@@ -477,7 +498,7 @@ function checkPwd() {
     document.getElementById('pwd-err').style.display = 'block';
   }
 }
-
+ 
 async function loadAdminConfig() {
   try {
     const r = await db.from('configuracion').select('*').eq('id', 1).single();
@@ -487,7 +508,7 @@ async function loadAdminConfig() {
     }
   } catch(e) {}
 }
-
+ 
 async function saveConfig() {
   const recargo = parseFloat(document.getElementById('cfg-recargo').value) || 75;
   const tc = parseFloat(document.getElementById('cfg-tc').value) || 1415;
@@ -501,7 +522,7 @@ async function saveConfig() {
     renderLista(); renderPres();
   } catch(e) { toast('Error: ' + e.message, false); }
 }
-
+ 
 async function addProd() {
   const desc = document.getElementById('nd').value.trim();
   const precio = parseFloat(document.getElementById('np').value);
@@ -519,7 +540,7 @@ async function addProd() {
     renderAdmin(); renderLista();
   } catch(e) { toast('Error: ' + e.message, false); }
 }
-
+ 
 async function delProd(id) {
   if (!confirm('¿Eliminar este producto?')) return;
   try {
@@ -529,7 +550,7 @@ async function delProd(id) {
     renderAdmin(); renderLista();
   } catch(e) { toast('Error: ' + e.message, false); }
 }
-
+ 
 function renderAdmin() {
   if (!adminUnlocked) return;
   const q = (document.getElementById('qa').value || '').toLowerCase();
@@ -547,7 +568,7 @@ function renderAdmin() {
     <td style="text-align:center"><button class="del" onclick="delProd(${p.id})">🗑</button></td>
   </tr>`).join('');
 }
-
+ 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
@@ -557,7 +578,7 @@ function showPage(name) {
   if (name === 'lista') renderLista();
   if (name === 'pres') renderPres();
 }
-
+ 
 loadAll();
 </script>
 </body>
