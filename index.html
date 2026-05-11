@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lista de Precios — Local Eléctrico</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#111;font-size:14px}
+header{background:#1F4E79;color:#fff;padding:12px 20px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:100}
+header h1{font-size:16px;font-weight:600}
+nav{display:flex;gap:4px;margin-left:auto}
+nav button{padding:6px 14px;border:1px solid rgba(255,255,255,0.3);border-radius:6px;background:transparent;color:#fff;cursor:pointer;font-size:13px}
+nav button.active{background:rgba(255,255,255,0.2);font-weight:500}
+.page{display:none;padding:16px;max-width:1200px;margin:0 auto}
+.page.active{display:block}
+.cfg{display:flex;gap:12px;align-items:center;padding:10px 14px;background:#fff;border-radius:8px;margin-bottom:14px;border:1px solid #e5e5e5;flex-wrap:wrap}
+.cfg label{font-size:12px;color:#666}
+.cfg input[type=number]{width:80px;height:30px;padding:0 8px;border:1px solid #ddd;border-radius:6px;font-size:13px;font-weight:500}
+.sep{width:1px;height:18px;background:#e5e5e5}
+.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.toolbar input[type=text]{flex:1;min-width:180px;height:34px;padding:0 12px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.toolbar select{height:34px;padding:0 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;background:#fff}
+.tbl-wrap{background:#fff;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden}
+.tbl-scroll{max-height:500px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:9px 12px;border-bottom:1px solid #e5e5e5;color:#666;font-weight:500;font-size:11px;position:sticky;top:0;background:#fafafa;z-index:1}
+td{padding:8px 12px;border-bottom:1px solid #f0f0f0}
+tr:hover td{background:#fafafa}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:10px;font-weight:600}
+.b-TREFILCON{background:#dbeafe;color:#1e40af}
+.b-VARKAUS{background:#fee2e2;color:#991b1b}
+.b-RBC{background:#dcfce7;color:#166534}
+.b-CANDELA{background:#fef3c7;color:#92400e}
+.b-SICA{background:#ede9fe;color:#5b21b6}
+.b-MACROLED{background:#fce7f3;color:#9d174d}
+.price{text-align:right;font-weight:500}
+.count{font-size:12px;color:#888;margin-bottom:8px}
+.add-btn{background:none;border:1px solid #ddd;border-radius:6px;cursor:pointer;padding:3px 10px;font-size:12px;color:#666}
+.add-btn:hover{background:#f0f0f0}
+/* Presupuesto */
+.pres-wrap{background:#fff;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:12px}
+.pt{width:100%;border-collapse:collapse;font-size:13px}
+.pt th{padding:9px 10px;border-bottom:1px solid #e5e5e5;font-size:11px;color:#666;font-weight:500;text-align:left;background:#fafafa}
+.pt td{padding:6px 8px;border-bottom:1px solid #f0f0f0}
+.pt input[type=number]{width:54px;height:26px;padding:0 4px;border:1px solid #ddd;border-radius:4px;font-size:13px;text-align:center}
+.del{background:none;border:none;cursor:pointer;color:#ccc;padding:3px 6px;border-radius:4px;font-size:14px}
+.del:hover{background:#fee2e2;color:#991b1b}
+.totals{display:flex;justify-content:flex-end;gap:24px;padding:12px 16px;background:#f9f9f9;border-radius:8px;margin-bottom:12px;align-items:center;border:1px solid #e5e5e5;flex-wrap:wrap}
+.tl{font-size:11px;color:#888;margin-bottom:2px}
+.tv{font-size:15px;font-weight:600}
+.tv.big{font-size:22px;color:#1F4E79}
+.row-btns{display:flex;gap:8px;flex-wrap:wrap}
+.btn{height:32px;padding:0 16px;border:1px solid #ddd;border-radius:6px;background:#fff;cursor:pointer;font-size:13px;color:#333}
+.btn:hover{background:#f5f5f5}
+.btn.pri{background:#1F4E79;color:#fff;border-color:#1F4E79}
+.btn.pri:hover{background:#163d61}
+/* Autocomplete */
+.ac-wrap{position:relative}
+.ac-input{width:100%;height:28px;padding:0 8px;border:1px solid #ddd;border-radius:4px;font-size:12px}
+.ac-drop{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #ddd;border-radius:6px;z-index:500;max-height:240px;overflow-y:auto;margin-top:2px;box-shadow:0 4px 12px rgba(0,0,0,0.1)}
+.ac-item{padding:8px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;font-size:12px}
+.ac-item:hover,.ac-item.hi{background:#f0f7ff}
+.ac-desc{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ac-px{font-weight:600;white-space:nowrap;color:#1F4E79}
+/* Admin */
+.admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:12px}
+.adm-f{display:flex;flex-direction:column;gap:4px}
+.adm-f label{font-size:11px;color:#666;font-weight:500}
+.adm-f input,.adm-f select{height:32px;padding:0 8px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:8px;padding:16px;margin-bottom:14px}
+.card h3{font-size:13px;font-weight:600;margin-bottom:12px;color:#333}
+.loading{text-align:center;padding:32px;color:#888;font-size:13px}
+.empty{text-align:center;padding:28px;color:#aaa;font-size:13px}
+.toast{position:fixed;bottom:20px;right:20px;background:#1F4E79;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity 0.3s}
+.toast.show{opacity:1}
+.admin-pass{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px}
+.admin-pass input{height:36px;padding:0 12px;border:1px solid #ddd;border-radius:6px;font-size:14px;width:220px;text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ Lista de Precios</h1>
+  <nav>
+    <button class="active" onclick="showPage('lista')">Lista de precios</button>
+    <button onclick="showPage('pres')">Presupuesto</button>
+    <button onclick="showPage('admin')">Admin</button>
+  </nav>
+</header>
+
+<div id="page-lista" class="page active">
+  <div class="cfg">
+    <label>Recargo</label>
+    <input type="number" id="r-l" value="75" min="0" oninput="cfgChange('l')">
+    <span style="font-size:12px;color:#888">%</span>
+    <div class="sep"></div>
+    <label>Dólar BNA</label>
+    <input type="number" id="tc-l" value="1415" min="1" oninput="cfgChange('l')">
+    <span style="font-size:12px;color:#888">ARS</span>
+    <div class="sep"></div>
+    <span id="cfg-saved" style="font-size:11px;color:#10b981"></span>
+  </div>
+  <div class="toolbar">
+    <input type="text" id="q-l" placeholder="Buscar producto..." oninput="renderLista()">
+    <select id="m-l" onchange="renderLista()">
+      <option value="">Todas las marcas</option>
+      <option>TREFILCON</option><option>VARKAUS</option><option>RBC SITEL</option>
+      <option>CANDELA</option><option>SICA</option><option>MACROLED</option>
+    </select>
+  </div>
+  <div class="count" id="cnt-l">Cargando productos...</div>
+  <div class="tbl-wrap">
+    <div class="tbl-scroll">
+      <table><thead><tr>
+        <th style="width:40%">Descripción</th>
+        <th style="width:12%">Marca</th>
+        <th style="width:10%">Moneda</th>
+        <th style="width:14%;text-align:right">P. lista</th>
+        <th style="width:16%;text-align:right">Precio final ARS</th>
+        <th style="width:8%;text-align:center">+Pres.</th>
+      </tr></thead>
+      <tbody id="tb-l"><tr><td colspan="6" class="loading">Cargando...</td></tr></tbody></table>
+    </div>
+  </div>
+</div>
+
+<div id="page-pres" class="page">
+  <div class="cfg">
+    <label>Recargo</label>
+    <input type="number" id="r-p" value="75" min="0" oninput="cfgChange('p')">
+    <span style="font-size:12px;color:#888">%</span>
+    <div class="sep"></div>
+    <label>Dólar BNA</label>
+    <input type="number" id="tc-p" value="1415" min="1" oninput="cfgChange('p')">
+    <span style="font-size:12px;color:#888">ARS</span>
+    <div class="sep"></div>
+    <label>Cliente</label>
+    <input type="text" id="cli" placeholder="Nombre del cliente" style="height:30px;padding:0 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;width:180px">
+  </div>
+  <div class="pres-wrap">
+    <table class="pt"><thead><tr>
+      <th style="width:40%">Descripción</th>
+      <th style="width:13%">Marca</th>
+      <th style="width:15%;text-align:right">P. final unit.</th>
+      <th style="width:8%;text-align:center">Cant.</th>
+      <th style="width:14%;text-align:right">Importe</th>
+      <th style="width:10%"></th>
+    </tr></thead>
+    <tbody id="tb-p"></tbody></table>
+  </div>
+  <div class="row-btns" style="margin-bottom:12px">
+    <button class="btn" onclick="addRow()">+ Agregar ítem</button>
+    <button class="btn" onclick="clearPres()">🗑 Limpiar</button>
+    <button class="btn" onclick="savePres()">💾 Guardar</button>
+    <button class="btn pri" onclick="printPres()">🖨 Imprimir</button>
+  </div>
+  <div class="totals">
+    <div><div class="tl">Subtotal</div><div class="tv" id="sub">$0</div></div>
+    <div>
+      <div class="tl">Descuento %</div>
+      <input type="number" id="dsc" value="0" min="0" max="100" style="width:54px;height:26px;padding:0 6px;border:1px solid #ddd;border-radius:4px;font-size:13px" oninput="calcTot()">
+    </div>
+    <div><div class="tl">Desc. monto</div><div class="tv" id="dm">-$0</div></div>
+    <div><div class="tl">TOTAL</div><div class="tv big" id="tot">$0</div></div>
+  </div>
+</div>
+
+<div id="page-admin" class="page">
+  <div id="admin-lock" class="card">
+    <div class="admin-pass">
+      <div style="font-size:24px">🔒</div>
+      <div style="font-weight:600">Panel de administración</div>
+      <div style="font-size:12px;color:#888">Ingresá la contraseña para continuar</div>
+      <input type="password" id="admin-pwd" placeholder="Contraseña" onkeydown="if(event.key==='Enter')checkPwd()">
+      <button class="btn pri" onclick="checkPwd()">Ingresar</button>
+      <div id="pwd-err" style="font-size:12px;color:#dc2626;display:none">Contraseña incorrecta</div>
+    </div>
+  </div>
+  <div id="admin-content" style="display:none">
+    <div class="card">
+      <h3>Configuración global</h3>
+      <div class="admin-grid">
+        <div class="adm-f"><label>% Recargo default</label><input type="number" id="cfg-recargo" value="75" min="0"></div>
+        <div class="adm-f"><label>Tipo de cambio BNA</label><input type="number" id="cfg-tc" value="1415" min="1"></div>
+        <div class="adm-f"><label>Contraseña admin</label><input type="password" id="cfg-pwd" placeholder="Nueva contraseña"></div>
+      </div>
+      <button class="btn pri" onclick="saveConfig()">Guardar configuración</button>
+    </div>
+    <div class="card">
+      <h3>Agregar producto</h3>
+      <div class="admin-grid">
+        <div class="adm-f" style="grid-column:span 2"><label>Descripción</label><input type="text" id="nd" placeholder="Nombre del producto"></div>
+        <div class="adm-f"><label>Marca</label>
+          <select id="nm"><option>TREFILCON</option><option>VARKAUS</option><option>RBC SITEL</option><option>CANDELA</option><option>SICA</option><option>MACROLED</option></select>
+        </div>
+        <div class="adm-f"><label>Precio lista</label><input type="number" id="np" placeholder="0" step="0.01"></div>
+        <div class="adm-f"><label>Moneda</label>
+          <select id="nmon"><option value="ARS">ARS</option><option value="USD">USD</option></select>
+        </div>
+        <div class="adm-f"><label>Ajuste de cálculo</label>
+          <select id="naj">
+            <option value="none">Solo recargo</option>
+            <option value="trefilcon">-35% + recargo (TREFILCON)</option>
+            <option value="varkaus">-60% + IVA 21% + recargo (VARKAUS)</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn pri" onclick="addProd()">+ Agregar producto</button>
+    </div>
+    <div class="card">
+      <h3>Productos (<span id="acnt">0</span>)</h3>
+      <div class="toolbar" style="margin-bottom:10px">
+        <input type="text" id="qa" placeholder="Buscar para eliminar..." oninput="renderAdmin()">
+        <select id="ma" onchange="renderAdmin()">
+          <option value="">Todas las marcas</option>
+          <option>TREFILCON</option><option>VARKAUS</option><option>RBC SITEL</option>
+          <option>CANDELA</option><option>SICA</option><option>MACROLED</option>
+        </select>
+      </div>
+      <div class="tbl-wrap">
+        <div class="tbl-scroll" style="max-height:350px">
+          <table><thead><tr>
+            <th style="width:44%">Descripción</th>
+            <th style="width:14%">Marca</th>
+            <th style="width:10%">Moneda</th>
+            <th style="width:16%;text-align:right">P. lista</th>
+            <th style="width:16%;text-align:right">P. final ARS</th>
+            <th style="width:8%"></th>
+          </tr></thead>
+          <tbody id="tb-a"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPA_URL = 'https://katzleavapthehccllbw.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImthdHpsZWF2YXB0aGVoY2NsbGJ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg0NDYzMjAsImV4cCI6MjA5NDAyMjMyMH0.pe8wTkvu46Pxgruqa6DqDrGpW-zkl_xJfFudlqSoh6s';
+const ADMIN_PWD = 'electrico2026';
+
+const { createClient } = supabase;
+const db = createClient(SUPA_URL, SUPA_KEY);
+
+let products = [];
+let presRows = [];
+let cfg = { recargo: 75, tc: 1415 };
+let adminUnlocked = false;
+let filteredProducts = [];
+
+function badge(m) {
+  const cls = { TREFILCON:'b-TREFILCON', VARKAUS:'b-VARKAUS', 'RBC SITEL':'b-RBC', CANDELA:'b-CANDELA', SICA:'b-SICA', MACROLED:'b-MACROLED' };
+  return `<span class="badge ${cls[m]||''}">${m}</span>`;
+}
+
+function calcFinal(p) {
+  const r = cfg.recargo / 100, tc = cfg.tc;
+  let b = parseFloat(p.precio_lista);
+  if (p.ajuste === 'trefilcon') b = b * (1 - 0.35) * (1 + r);
+  else if (p.ajuste === 'varkaus') b = b * (1 - 0.60) * 1.21 * (1 + r);
+  else b = b * (1 + r);
+  if (p.moneda === 'USD') b = b * tc;
+  return b;
+}
+
+function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+function fmtL(p) {
+  return p.moneda === 'USD'
+    ? 'USD ' + parseFloat(p.precio_lista).toFixed(2)
+    : '$' + Math.round(p.precio_lista).toLocaleString('es-AR');
+}
+
+function toast(msg, ok=true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.style.background = ok ? '#1F4E79' : '#dc2626';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+async function loadAll() {
+  try {
+    const [prodRes, cfgRes] = await Promise.all([
+      db.from('productos').select('*').eq('activo', true).order('marca').order('descripcion'),
+      db.from('configuracion').select('*').eq('id', 1).single()
+    ]);
+    if (prodRes.data) products = prodRes.data;
+    if (cfgRes.data) {
+      cfg.recargo = parseFloat(cfgRes.data.recargo);
+      cfg.tc = parseFloat(cfgRes.data.tipo_cambio);
+      applyConfig();
+    }
+    const saved = localStorage.getItem('presRows');
+    if (saved) presRows = JSON.parse(saved);
+    renderLista();
+    renderPres();
+  } catch(e) {
+    toast('Error cargando datos: ' + e.message, false);
+  }
+}
+
+function applyConfig() {
+  ['r-l','r-p'].forEach(id => document.getElementById(id).value = cfg.recargo);
+  ['tc-l','tc-p'].forEach(id => document.getElementById(id).value = cfg.tc);
+}
+
+function cfgChange(src) {
+  const r = src === 'l' ? 'r-l' : 'r-p';
+  const t = src === 'l' ? 'tc-l' : 'tc-p';
+  cfg.recargo = parseFloat(document.getElementById(r).value) || 0;
+  cfg.tc = parseFloat(document.getElementById(t).value) || 1;
+  applyConfig();
+  renderLista();
+  renderPres();
+}
+
+function getFiltered() {
+  const q = (document.getElementById('q-l').value || '').toLowerCase();
+  const m = document.getElementById('m-l').value;
+  return products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m));
+}
+
+function renderLista() {
+  filteredProducts = getFiltered();
+  const show = filteredProducts.slice(0, 300);
+  const total = filteredProducts.length;
+  document.getElementById('cnt-l').textContent =
+    `${total} producto${total !== 1 ? 's' : ''}${total > 300 ? ' (mostrando primeros 300)' : ''}`;
+  const tb = document.getElementById('tb-l');
+  if (!show.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No se encontraron productos</td></tr>'; return; }
+  tb.innerHTML = show.map(p => `<tr>
+    <td style="font-size:12px">${p.descripcion}</td>
+    <td>${badge(p.marca)}</td>
+    <td style="font-size:12px">${p.moneda}</td>
+    <td class="price" style="font-size:12px">${fmtL(p)}</td>
+    <td class="price" style="font-size:12px">${fmt(calcFinal(p))}</td>
+    <td style="text-align:center"><button class="add-btn" onclick="addFromLista(${p.id})">+</button></td>
+  </tr>`).join('');
+}
+
+function addFromLista(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  presRows.push({ rid: Date.now(), pid: id, qty: 1 });
+  savePres();
+  renderPres();
+  showPage('pres');
+  toast(`${p.descripcion.substring(0, 40)}... agregado al presupuesto`);
+}
+
+function renderPres() {
+  const tb = document.getElementById('tb-p');
+  if (!presRows.length) {
+    tb.innerHTML = '<tr><td colspan="6" class="empty">Sin ítems. Buscá un producto en la lista o hacé clic en "+ Agregar ítem".</td></tr>';
+    calcTot(); return;
+  }
+  tb.innerHTML = presRows.map((row, i) => {
+    const p = products.find(x => x.id === row.pid);
+    const fin = p ? calcFinal(p) : 0;
+    return `<tr>
+      <td>
+        <div class="ac-wrap" id="aw${i}">
+          <input class="ac-input" type="text" value="${p ? p.descripcion : ''}"
+            placeholder="Escribí para buscar..."
+            oninput="acSearch(${i},this.value)"
+            onfocus="acSearch(${i},this.value)"
+            onblur="setTimeout(()=>acClose(${i}),200)">
+          <div class="ac-drop" id="ad${i}" style="display:none"></div>
+        </div>
+      </td>
+      <td>${p ? badge(p.marca) : ''}</td>
+      <td class="price" style="font-size:12px">${p ? fmt(fin) : '-'}</td>
+      <td style="text-align:center">
+        <input type="number" value="${row.qty}" min="1" onchange="setQty(${i},this.value)">
+      </td>
+      <td class="price" style="font-size:12px">${p ? fmt(fin * row.qty) : '-'}</td>
+      <td style="text-align:center"><button class="del" onclick="delRow(${i})">✕</button></td>
+    </tr>`;
+  }).join('');
+  calcTot();
+}
+
+function acSearch(i, q) {
+  const drop = document.getElementById('ad' + i);
+  if (!q || q.length < 2) { drop.style.display = 'none'; return; }
+  const matches = products.filter(p => p.descripcion.toLowerCase().includes(q.toLowerCase())).slice(0, 15);
+  if (!matches.length) { drop.style.display = 'none'; return; }
+  drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSel(${i},${p.id})">
+    <span class="ac-desc">${p.descripcion}</span>
+    <span class="ac-px">${fmt(calcFinal(p))}</span>
+  </div>`).join('');
+  drop.style.display = 'block';
+}
+function acClose(i) { const d = document.getElementById('ad' + i); if (d) d.style.display = 'none'; }
+function acSel(i, pid) {
+  presRows[i].pid = pid;
+  savePres(); acClose(i); renderPres();
+}
+function setQty(i, v) { presRows[i].qty = Math.max(1, parseInt(v) || 1); savePres(); renderPres(); }
+function delRow(i) { presRows.splice(i, 1); savePres(); renderPres(); }
+function addRow() { presRows.push({ rid: Date.now(), pid: null, qty: 1 }); savePres(); renderPres(); }
+function clearPres() { if (presRows.length && !confirm('¿Limpiar presupuesto?')) return; presRows = []; savePres(); renderPres(); }
+function savePres() { localStorage.setItem('presRows', JSON.stringify(presRows)); }
+
+async function savePresSupa() {
+  const cli = document.getElementById('cli').value || '';
+  const dPct = parseFloat(document.getElementById('dsc').value) || 0;
+  let sub = 0;
+  presRows.forEach(r => { const p = products.find(x => x.id === r.pid); if (p) sub += calcFinal(p) * r.qty; });
+  const total = sub - sub * dPct / 100;
+  try {
+    await db.from('presupuestos').insert({ cliente: cli, items: presRows, descuento: dPct, total });
+    toast('Presupuesto guardado');
+  } catch(e) { toast('Error al guardar', false); }
+}
+
+function calcTot() {
+  let sub = 0;
+  presRows.forEach(r => { const p = products.find(x => x.id === r.pid); if (p) sub += calcFinal(p) * r.qty; });
+  const dPct = parseFloat(document.getElementById('dsc').value) || 0;
+  const dM = sub * dPct / 100;
+  document.getElementById('sub').textContent = fmt(sub);
+  document.getElementById('dm').textContent = '-' + fmt(dM);
+  document.getElementById('tot').textContent = fmt(sub - dM);
+}
+
+function printPres() {
+  const cli = document.getElementById('cli').value || '—';
+  const fecha = new Date().toLocaleDateString('es-AR');
+  const dPct = parseFloat(document.getElementById('dsc').value) || 0;
+  let sub = 0;
+  const rows = presRows.filter(r => r.pid);
+  const items = rows.map(r => {
+    const p = products.find(x => x.id === r.pid);
+    const fin = p ? calcFinal(p) : 0;
+    sub += fin * r.qty;
+    return `<tr><td>${p ? p.descripcion : ''}</td><td style="text-align:center">${r.qty}</td><td style="text-align:right">${fmt(fin)}</td><td style="text-align:right">${fmt(fin * r.qty)}</td></tr>`;
+  }).join('');
+  const dM = sub * dPct / 100;
+  const tot = sub - dM;
+  const w = window.open('', '_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Presupuesto - ${cli}</title>
+  <style>body{font-family:Arial,sans-serif;font-size:13px;padding:28px 36px;color:#111}
+  h1{font-size:18px;margin-bottom:4px}
+  table{width:100%;border-collapse:collapse;margin:16px 0}
+  th{border-bottom:1px solid #ccc;padding:6px 8px;text-align:left;font-size:11px;color:#666}
+  td{padding:6px 8px;border-bottom:0.5px solid #eee}
+  .totals{text-align:right;margin-top:12px;border-top:1px solid #ccc;padding-top:12px}
+  .big{font-size:16px;font-weight:700}
+  @media print{body{padding:16px}}</style></head><body>
+  <h1>⚡ Presupuesto</h1>
+  <p style="color:#666;font-size:12px">Cliente: <strong>${cli}</strong> &nbsp;•&nbsp; Fecha: ${fecha} &nbsp;•&nbsp; Recargo: ${cfg.recargo}% &nbsp;•&nbsp; TC: $${cfg.tc}</p>
+  <table><thead><tr><th>Descripción</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. unit.</th><th style="text-align:right">Importe</th></tr></thead>
+  <tbody>${items}</tbody></table>
+  <div class="totals">
+    <div>Subtotal: ${fmt(sub)}</div>
+    ${dPct ? `<div>Descuento (${dPct}%): -${fmt(dM)}</div>` : ''}
+    <div class="big">Total: ${fmt(tot)}</div>
+  </div></body></html>`);
+  w.document.close(); w.print();
+}
+
+function checkPwd() {
+  const pwd = document.getElementById('admin-pwd').value;
+  const stored = localStorage.getItem('adminPwd') || ADMIN_PWD;
+  if (pwd === stored) {
+    document.getElementById('admin-lock').style.display = 'none';
+    document.getElementById('admin-content').style.display = 'block';
+    adminUnlocked = true;
+    renderAdmin();
+    loadAdminConfig();
+  } else {
+    document.getElementById('pwd-err').style.display = 'block';
+  }
+}
+
+async function loadAdminConfig() {
+  try {
+    const r = await db.from('configuracion').select('*').eq('id', 1).single();
+    if (r.data) {
+      document.getElementById('cfg-recargo').value = r.data.recargo;
+      document.getElementById('cfg-tc').value = r.data.tipo_cambio;
+    }
+  } catch(e) {}
+}
+
+async function saveConfig() {
+  const recargo = parseFloat(document.getElementById('cfg-recargo').value) || 75;
+  const tc = parseFloat(document.getElementById('cfg-tc').value) || 1415;
+  const newPwd = document.getElementById('cfg-pwd').value;
+  try {
+    await db.from('configuracion').update({ recargo, tipo_cambio: tc, updated_at: new Date().toISOString() }).eq('id', 1);
+    cfg.recargo = recargo; cfg.tc = tc;
+    applyConfig();
+    if (newPwd) localStorage.setItem('adminPwd', newPwd);
+    toast('Configuración guardada ✓');
+    renderLista(); renderPres();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+async function addProd() {
+  const desc = document.getElementById('nd').value.trim();
+  const precio = parseFloat(document.getElementById('np').value);
+  if (!desc || !precio) { toast('Completá descripción y precio', false); return; }
+  try {
+    const r = await db.from('productos').insert({
+      descripcion: desc, marca: document.getElementById('nm').value,
+      precio_lista: precio, moneda: document.getElementById('nmon').value,
+      ajuste: document.getElementById('naj').value, activo: true
+    }).select().single();
+    if (r.data) { products.push(r.data); }
+    document.getElementById('nd').value = '';
+    document.getElementById('np').value = '';
+    toast('Producto agregado ✓');
+    renderAdmin(); renderLista();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+async function delProd(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  try {
+    await db.from('productos').update({ activo: false }).eq('id', id);
+    products = products.filter(p => p.id !== id);
+    toast('Producto eliminado');
+    renderAdmin(); renderLista();
+  } catch(e) { toast('Error: ' + e.message, false); }
+}
+
+function renderAdmin() {
+  if (!adminUnlocked) return;
+  const q = (document.getElementById('qa').value || '').toLowerCase();
+  const m = document.getElementById('ma').value;
+  const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
+  document.getElementById('acnt').textContent = products.length;
+  const tb = document.getElementById('tb-a');
+  if (!list.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No hay productos</td></tr>'; return; }
+  tb.innerHTML = list.map(p => `<tr>
+    <td style="font-size:12px">${p.descripcion}</td>
+    <td>${badge(p.marca)}</td>
+    <td style="font-size:12px">${p.moneda}</td>
+    <td class="price" style="font-size:12px">${fmtL(p)}</td>
+    <td class="price" style="font-size:12px">${fmt(calcFinal(p))}</td>
+    <td style="text-align:center"><button class="del" onclick="delProd(${p.id})">🗑</button></td>
+  </tr>`).join('');
+}
+
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  const idx = { lista: 0, pres: 1, admin: 2 }[name];
+  document.querySelectorAll('nav button')[idx].classList.add('active');
+  if (name === 'lista') renderLista();
+  if (name === 'pres') renderPres();
+}
+
+loadAll();
+</script>
+</body>
+</html>
