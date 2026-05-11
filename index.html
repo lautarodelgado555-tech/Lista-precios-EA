@@ -487,7 +487,7 @@ function renderPres() {
         <td style="text-align:center">
           <input type="number" value="${row.qty}" min="1" onchange="setQty(${i},this.value)">
         </td>
-        <td class="price" style="font-size:12px">${fmt(imp)}</td>
+        <td class="price" style="font-size:12px" id="mimp-${i}">${fmt(imp)}</td>
         <td style="text-align:center"><button class="del" onclick="delRow(${i})">✕</button></td>
       </tr>`;
     }
@@ -550,7 +550,15 @@ function acSel(i, pid) {
   presRows[i].pid = pid;
   savePres(); acClose(i); renderPres();
 }
-function setQty(i, v) { presRows[i].qty = Math.max(1, parseInt(v) || 1); savePres(); renderPres(); }
+function setQty(i, v) {
+  presRows[i].qty = Math.max(1, parseInt(v) || 1);
+  if (presRows[i].manual) {
+    const precio = parseFloat(presRows[i].manualPrecio) || 0;
+    const impCell = document.getElementById('mimp-' + i);
+    if (impCell) impCell.textContent = fmt(precio * presRows[i].qty);
+  }
+  savePres(); renderPres();
+}
 function delRow(i) { presRows.splice(i, 1); savePres(); renderPres(); }
 function addRow(manual=false) {
   presRows.push({ rid: Date.now(), pid: null, qty: 1, manual: manual, manualDesc: '', manualPrecio: 0, recargo: cfg.recargo });
@@ -576,7 +584,14 @@ async function savePresSupa() {
 
 function setRowRecargo(i, v) { presRows[i].recargo = parseFloat(v)||0; savePres(); renderPres(); }
 function setManualDesc(i, v) { presRows[i].manualDesc = v; savePres(); calcTot(); }
-function setManualPrecio(i, v) { presRows[i].manualPrecio = parseFloat(v)||0; savePres(); calcTot(); }
+function setManualPrecio(i, v) {
+  const precio = parseFloat(v) || 0;
+  presRows[i].manualPrecio = precio;
+  const qty = parseInt(presRows[i].qty) || 1;
+  const impCell = document.getElementById('mimp-' + i);
+  if (impCell) impCell.textContent = fmt(precio * qty);
+  savePres(); calcTot();
+}
 
 function calcTot() {
   let sub = 0;
