@@ -325,6 +325,7 @@ tr:hover td{background:var(--bg3)}
         <input type="text" id="carpeta-cliente-input" placeholder="Nombre del cliente" 
           style="font-size:16px;font-weight:700;background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);padding:2px 4px;width:260px;font-family:var(--font-sans)"
           oninput="carpetaActual.cliente=this.value;guardaCarpeta()">
+        <div id="carpeta-fecha-creacion" style="font-size:11px;color:var(--text3);margin-top:3px;padding-left:4px"></div>
       </div>
       <span id="carpeta-estado-badge"></span>
       <button class="btn" onclick="imprimirCarpeta()" style="font-size:12px">🖨 Imprimir estado</button>
@@ -1153,6 +1154,10 @@ async function abrirCarpeta(id) {
   document.getElementById('carpetas-lista').style.display = 'none';
   document.getElementById('carpeta-detalle').style.display = 'block';
   document.getElementById('carpeta-cliente-input').value = carpetaActual.cliente || '';
+  const fechaCreHdr = document.getElementById('carpeta-fecha-creacion');
+  if (fechaCreHdr && carpetaActual.created_at) {
+    fechaCreHdr.textContent = 'Abierta el ' + new Date(carpetaActual.created_at).toLocaleDateString('es-AR');
+  }
   document.getElementById('carpeta-recargo').value = cfg.recargo;
   document.getElementById('carpeta-tc').value = cfg.tc;
 
@@ -1309,6 +1314,11 @@ function setCarpetaCobrado(i, val) {
   if (!carpetaActual) return;
   const cobrado = parseFloat(val) || 0;
   carpetaActual.items[i].cobrado = cobrado;
+  if (cobrado > 0) {
+    carpetaActual.items[i].fechaCobro = new Date().toLocaleDateString('es-AR');
+  } else {
+    carpetaActual.items[i].fechaCobro = null;
+  }
   // Update cobrado cell border color directly
   const rows = document.getElementById('tb-carpeta').querySelectorAll('tr');
   if (rows[i]) {
@@ -1323,7 +1333,8 @@ function setCarpetaCobrado(i, val) {
     const inp = rows[i].querySelector('input[type="number"][onclick="this.select()"]') ||
                 Array.from(rows[i].querySelectorAll('input')).find(el => el.placeholder === '0');
     if (cells[7]) {
-      cells[7].textContent = pendiente > 0 ? fmt(Math.max(0, pendiente)) : '✓';
+      const fecha = carpetaActual.items[i].fechaCobro;
+      cells[7].textContent = pendiente > 0 ? fmt(Math.max(0, pendiente)) : ('✓ ' + (fecha || ''));
       cells[7].style.color = pendiente > 0 ? 'var(--accent)' : '#22c55e';
     }
   }
@@ -1426,17 +1437,19 @@ async function cerrarCarpeta() {
 function imprimirCarpeta() {
   if (!carpetaActual) return;
   const items = carpetaActual.items || [];
-  const tc = parseFloat(document.getElementById('carpeta-tc').value) || cfg.tc;
   let total = 0, cobradoTotal = 0;
+  const fechaImpresion = new Date().toLocaleDateString('es-AR');
+  const fechaCreacion = carpetaActual.created_at ? new Date(carpetaActual.created_at).toLocaleDateString('es-AR') : '-';
+  const estadoCarpeta = carpetaActual.estado === 'cerrada' ? 'CERRADA' : 'EN CURSO';
 
-  const rows = items.map(item => {
+  const filas = items.map(function(item) {
     const recargo = item.recargo !== undefined ? item.recargo : cfg.recargo;
     let desc = '', fin = 0;
     if (item.manual === true) {
-      desc = item.manualDesc || '(sin descripción)';
+      desc = item.manualDesc || '(sin descripcion)';
       fin = parseFloat(item.manualPrecio) || 0;
     } else {
-      const p = products.find(x => x.id === item.pid);
+      const p = products.find(function(x) { return x.id === item.pid; });
       desc = p ? p.descripcion : '(producto)';
       fin = p ? calcFinal(p, recargo) : 0;
     }
@@ -1447,98 +1460,106 @@ function imprimirCarpeta() {
     total += totalItem;
     cobradoTotal += cobrado;
 
-    const estadoColor = cobrado >= totalItem && totalItem > 0 ? '#16a34a' : cobrado > 0 ? '#d97706' : '#dc2626';
-    const estadoLabel = cobrado >= totalItem && totalItem > 0 ? '✓ Cobrado' : cobrado > 0 ? `Parcial (${fmt(cobrado)})` : 'Pendiente';
+    let estadoColor = '#dc2626';
+    let estadoLabel = 'Pendiente';
+    if (cobrado >= totalItem && totalItem > 0) {
+      estadoColor = '#16a34a';
+      estadoLabel = 'Cobrado' + (item.fechaCobro ? ' (' + item.fechaCobro + ')' : '');
+    } else if (cobrado > 0) {
+      estadoColor = '#d97706';
+      estadoLabel = 'Parcial $' + Math.round(cobrado).toLocaleString('es-AR') + (item.fechaCobro ? ' (' + item.fechaCobro + ')' : '');
+    }
 
-    return `<tr>
-      <td style="padding:8px 10px;font-size:13px;border-bottom:1px solid #efefef">${desc}</td>
-      <td style="padding:8px 10px;text-align:center;border-bottom:1px solid #efefef">${qty}</td>
-      <td style="padding:8px 10px;text-align:right;font-weight:500;border-bottom:1px solid #efefef">${fmt(fin)}</td>
-      <td style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #efefef">${fmt(totalItem)}</td>
-      <td style="padding:8px 10px;text-align:right;color:${estadoColor};font-weight:600;border-bottom:1px solid #efefef">${estadoLabel}</td>
-    </tr>`;
+    return '<tr>' +
+      '<td style="padding:8px 10px;font-size:12px;border-bottom:1px solid #efefef">' + desc + '</td>' +
+      '<td style="padding:8px 10px;text-align:center;border-bottom:1px solid #efefef">' + qty + '</td>' +
+      '<td style="padding:8px 10px;text-align:right;font-weight:500;border-bottom:1px solid #efefef">$' + Math.round(fin).toLocaleString('es-AR') + '</td>' +
+      '<td style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #efefef">$' + Math.round(totalItem).toLocaleString('es-AR') + '</td>' +
+      '<td style="padding:8px 10px;text-align:right;color:' + estadoColor + ';font-weight:600;border-bottom:1px solid #efefef">' + estadoLabel + '</td>' +
+      '</tr>';
   }).join('');
 
-  const pendienteTotal = total - cobradoTotal;
-  const fecha = new Date().toLocaleDateString('es-AR');
-  const estadoCarpeta = carpetaActual.estado === 'cerrada' ? 'CERRADA' : 'EN CURSO';
+  const pendienteTotal = Math.max(0, total - cobradoTotal);
+  const logoSrc = "data:image/png;base64,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";
 
-  const w = window.open('', '_blank') || window.open('', '_self');
-  if (!w) { toast('Por favor habilitá las ventanas emergentes para imprimir', false); return; }
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Estado de cuenta - ${carpetaActual.cliente}</title>
-  <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;padding:28px 36px}
-    .hdr{background:#111;color:#fff;padding:18px 22px;display:flex;align-items:center;gap:18px}
-    .hdr img{width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid #e8b400}
-    .hdr-r{flex:1}
-    .hdr-n{font-size:22px;font-weight:900;letter-spacing:1px}
-    .hdr-s{font-size:11px;color:#aaa;margin-top:2px}
-    .hdr-t{font-size:12px;color:#e8b400;margin-top:4px;font-weight:600}
-    .hdr-d{text-align:right;font-size:11px;color:#aaa}
-    .bar{height:5px;background:#e8b400;margin-bottom:22px}
-    .dtitle{font-size:18px;font-weight:800;border-bottom:3px solid #e8b400;padding-bottom:6px;margin-bottom:16px;display:inline-block}
-    .csec{background:#f8f8f8;border:1px solid #e5e5e5;border-radius:4px;padding:12px 16px;margin-bottom:18px;display:flex;gap:32px;flex-wrap:wrap}
-    .cf{display:flex;flex-direction:column;gap:2px}
-    .cl{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.6px;font-weight:600}
-    .cv{font-size:13px;font-weight:600}
-    table{width:100%;border-collapse:collapse;margin-bottom:16px}
-    thead tr{background:#111}
-    th{padding:9px 10px;text-align:left;font-size:11px;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
-    .tw{display:flex;justify-content:flex-end;margin-bottom:20px}
-    .tb{width:300px;border:1px solid #e5e5e5;border-radius:4px;overflow:hidden}
-    .trow{display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #efefef;font-size:13px}
-    .trow.cob{color:#16a34a;font-weight:600}
-    .trow.pen{color:#dc2626;font-weight:700}
-    .trow.fin{background:#111;color:#fff;font-weight:800;font-size:16px;border-bottom:none}
-    .trow.fin span:last-child{color:#e8b400}
-    .foot{border-top:1px solid #e5e5e5;padding-top:12px;font-size:11px;color:#999;display:flex;justify-content:space-between}
-    @media print{body{padding:16px}}
-  </style></head><body>
-  <div class="hdr">
-    <img src="${LOGO_SRC}" alt="Logo">
-    <div class="hdr-r">
-      <div class="hdr-n">ELECTRICIDAD ALBERDI</div>
-      <div class="hdr-s">Materiales eléctricos e iluminación</div>
-      <div class="hdr-t">Tel: 1557365361 &nbsp;|&nbsp; Lavalle 293, Quilmes</div>
-    </div>
-    <div class="hdr-d">
-      <div style="font-size:13px;font-weight:700;color:#fff">ESTADO DE CUENTA</div>
-      <div style="margin-top:4px">${fecha}</div>
-      <div style="margin-top:4px;color:#e8b400;font-weight:600">${estadoCarpeta}</div>
-    </div>
-  </div>
-  <div class="bar"></div>
-  <div class="dtitle">DETALLE DE CUENTA</div>
-  <div class="csec">
-    <div class="cf"><span class="cl">Cliente</span><span class="cv">${carpetaActual.cliente || '—'}</span></div>
-    <div class="cf"><span class="cl">Fecha impresión</span><span class="cv">${fecha}</span></div>
-    <div class="cf"><span class="cl">Estado</span><span class="cv" style="color:${carpetaActual.estado==='cerrada'?'#16a34a':'#dc2626'}">${estadoCarpeta}</span></div>
-  </div>
-  <table>
-    <thead><tr>
-      <th style="width:40%">Descripción</th>
-      <th style="width:8%;text-align:center">Cant.</th>
-      <th style="width:14%;text-align:right">P. unit.</th>
-      <th style="width:14%;text-align:right">Total</th>
-      <th style="width:24%;text-align:right">Estado de cobro</th>
-    </tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <div class="tw"><div class="tb">
-    <div class="trow"><span>Total presupuestado</span><span>${fmt(total)}</span></div>
-    <div class="trow cob"><span>Total cobrado</span><span>${fmt(cobradoTotal)}</span></div>
-    <div class="trow pen"><span>Saldo pendiente</span><span>${fmt(Math.max(0,pendienteTotal))}</span></div>
-    ${carpetaActual.estado==='cerrada'?`<div class="trow fin"><span>CERRADA</span><span>✓</span></div>`:''}
-  </div></div>
-  <div class="foot">
-    <span>Los precios no incluyen recargo (información interna).</span>
-    <span>Electricidad Alberdi &nbsp;|&nbsp; Lavalle 293, Quilmes</span>
-  </div>
-  </body></html>`);
-  w.document.close(); w.print();
+  const htmlContent = '<!DOCTYPE html><html><head><meta charset="utf-8">' +
+    '<title>Estado de cuenta - ' + (carpetaActual.cliente || '') + '</title>' +
+    '<style>' +
+    '*{box-sizing:border-box;margin:0;padding:0}' +
+    'body{font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff;padding:28px 36px}' +
+    '.hdr{background:#111;color:#fff;padding:18px 22px;display:flex;align-items:center;gap:18px}' +
+    '.hdr img{width:54px;height:54px;border-radius:50%;object-fit:cover;border:2px solid #e8b400}' +
+    '.hdr-r{flex:1}.hdr-n{font-size:22px;font-weight:900;letter-spacing:1px}' +
+    '.hdr-s{font-size:11px;color:#aaa;margin-top:2px}' +
+    '.hdr-t{font-size:12px;color:#e8b400;margin-top:4px;font-weight:600}' +
+    '.hdr-d{text-align:right;font-size:11px;color:#aaa}' +
+    '.bar{height:5px;background:#e8b400;margin-bottom:22px}' +
+    '.dtitle{font-size:18px;font-weight:800;border-bottom:3px solid #e8b400;padding-bottom:6px;margin-bottom:16px;display:inline-block}' +
+    '.csec{background:#f8f8f8;border:1px solid #e5e5e5;border-radius:4px;padding:12px 16px;margin-bottom:18px;display:flex;gap:28px;flex-wrap:wrap}' +
+    '.cf{display:flex;flex-direction:column;gap:2px}' +
+    '.cl{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:0.6px;font-weight:600}' +
+    '.cv{font-size:13px;font-weight:600}' +
+    'table{width:100%;border-collapse:collapse;margin-bottom:16px}' +
+    'thead tr{background:#111}' +
+    'th{padding:9px 10px;text-align:left;font-size:11px;color:#fff;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}' +
+    '.tw{display:flex;justify-content:flex-end;margin-bottom:20px}' +
+    '.tb{width:300px;border:1px solid #e5e5e5;border-radius:4px;overflow:hidden}' +
+    '.trow{display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid #efefef;font-size:13px}' +
+    '.cob{color:#16a34a;font-weight:600}.pen{color:#dc2626;font-weight:700}' +
+    '.fin{background:#111;color:#fff;font-weight:800;font-size:16px;border-bottom:none}' +
+    '.fin span:last-child{color:#e8b400}' +
+    '.foot{border-top:1px solid #e5e5e5;padding-top:12px;font-size:11px;color:#999;display:flex;justify-content:space-between}' +
+    '@media print{body{padding:16px}}' +
+    '</style></head><body>' +
+    '<div class="hdr">' +
+    '<img src="' + logoSrc + '" alt="Logo">' +
+    '<div class="hdr-r">' +
+    '<div class="hdr-n">ELECTRICIDAD ALBERDI</div>' +
+    '<div class="hdr-s">Materiales electricos e iluminacion</div>' +
+    '<div class="hdr-t">Tel: 1557365361 | Lavalle 293, Quilmes</div>' +
+    '</div>' +
+    '<div class="hdr-d">' +
+    '<div style="font-size:13px;font-weight:700;color:#fff">ESTADO DE CUENTA</div>' +
+    '<div style="margin-top:4px">Impreso: ' + fechaImpresion + '</div>' +
+    '<div style="margin-top:4px;color:#e8b400;font-weight:600">' + estadoCarpeta + '</div>' +
+    '</div></div>' +
+    '<div class="bar"></div>' +
+    '<div class="dtitle">DETALLE DE CUENTA</div>' +
+    '<div class="csec">' +
+    '<div class="cf"><span class="cl">Cliente</span><span class="cv">' + (carpetaActual.cliente || '-') + '</span></div>' +
+    '<div class="cf"><span class="cl">Apertura</span><span class="cv">' + fechaCreacion + '</span></div>' +
+    '<div class="cf"><span class="cl">Estado</span><span class="cv" style="color:' + (carpetaActual.estado === 'cerrada' ? '#16a34a' : '#dc2626') + '">' + estadoCarpeta + '</span></div>' +
+    '</div>' +
+    '<table><thead><tr>' +
+    '<th style="width:38%">Descripcion</th>' +
+    '<th style="width:7%;text-align:center">Cant.</th>' +
+    '<th style="width:13%;text-align:right">P. unit.</th>' +
+    '<th style="width:14%;text-align:right">Total item</th>' +
+    '<th style="width:28%;text-align:right">Estado de cobro</th>' +
+    '</tr></thead><tbody>' + filas + '</tbody></table>' +
+    '<div class="tw"><div class="tb">' +
+    '<div class="trow"><span>Total presupuestado</span><span>$' + Math.round(total).toLocaleString('es-AR') + '</span></div>' +
+    '<div class="trow cob"><span>Total cobrado</span><span>$' + Math.round(cobradoTotal).toLocaleString('es-AR') + '</span></div>' +
+    '<div class="trow pen"><span>Saldo pendiente</span><span>$' + Math.round(pendienteTotal).toLocaleString('es-AR') + '</span></div>' +
+    (carpetaActual.estado === 'cerrada' ? '<div class="trow fin"><span>CERRADA</span><span>&#10003;</span></div>' : '') +
+    '</div></div>' +
+    '<div class="foot">' +
+    '<span>Los precios no incluyen recargo (informacion interna).</span>' +
+    '<span>Electricidad Alberdi | Lavalle 293, Quilmes</span>' +
+    '</div></body></html>';
+
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const blobUrl = URL.createObjectURL(blob);
+  const w = window.open(blobUrl, '_blank');
+  if (!w) {
+    toast('Habilitá las ventanas emergentes del navegador para imprimir', false);
+    URL.revokeObjectURL(blobUrl);
+    return;
+  }
+  w.addEventListener('load', function() {
+    setTimeout(function() { w.print(); URL.revokeObjectURL(blobUrl); }, 400);
+  });
 }
-
 loadAll();
 </script>
 </body>
