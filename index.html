@@ -1076,13 +1076,13 @@ async function renderCarpetasLista() {
   if (!abiertas.length) {
     divAb.innerHTML = '<div class="empty">No hay carpetas abiertas. Creá una nueva.</div>';
   } else {
-    divAb.innerHTML = abiertas.map(c => carpetaCardHTML(c)).join('');
+    divAb.innerHTML = abiertas.map(c => { try { return carpetaCardHTML(c); } catch(e) { return ''; } }).join('');
   }
 
   if (!cerradas.length) {
     divCe.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0">No hay carpetas cerradas.</div>';
   } else {
-    divCe.innerHTML = cerradas.map(c => carpetaCardHTML(c, true)).join('');
+    divCe.innerHTML = cerradas.map(c => { try { return carpetaCardHTML(c, true); } catch(e) { return ''; } }).join('');
   }
 }
 
@@ -1118,9 +1118,12 @@ function carpetaCardHTML(c, cerrada=false) {
 }
 
 function calcCarpetaTotal(items) {
+  if (!items || !items.length) return 0;
   return items.reduce((sum, item) => {
-    const fin = item.manual ? (parseFloat(item.manualPrecio)||0) : calcCarpetaItemFinal(item);
-    return sum + fin * (parseInt(item.qty)||1);
+    try {
+      const fin = item.manual ? (parseFloat(item.manualPrecio)||0) : calcCarpetaItemFinal(item);
+      return sum + fin * (parseInt(item.qty)||1);
+    } catch(e) { return sum; }
   }, 0);
 }
 
@@ -1129,10 +1132,10 @@ function calcCarpetaCobrado(items) {
 }
 
 function calcCarpetaItemFinal(item) {
-  // Find product and calculate final price with item's recargo
   const p = products.find(x => x.id === item.pid);
   if (!p) return 0;
-  return calcFinal(p, item.recargo);
+  const recargo = (item.recargo !== undefined && item.recargo !== null) ? item.recargo : cfg.recargo;
+  return calcFinal(p, recargo);
 }
 
 // ── Nueva carpeta ────────────────────────────────────────────────────
