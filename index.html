@@ -192,7 +192,7 @@ tr:hover td{background:var(--bg3)}
   </div>
   <div class="row-btns" style="margin-bottom:12px">
     <button class="btn" onclick="addRow(false)">+ Buscar producto</button>
-    <button class="btn" onclick="addRow(true)" class="btn warn">+ Ítem manual</button>
+    <button class="btn warn" onclick="addRow(true)">+ Ítem manual</button>
     <button class="btn" onclick="clearPres()">🗑 Limpiar</button>
     <button class="btn" onclick="savePres()">💾 Guardar</button>
     <button class="btn pri" onclick="printPres()">🖨 Imprimir</button>
@@ -469,14 +469,14 @@ function renderPres() {
     const fin = row.manual ? (parseFloat(row.manualPrecio)||0) : (p ? calcFinal(p) : 0);
     const imp = fin * (parseInt(row.qty)||1);
     if (row.manual) {
-      return `<tr style="background:rgba(245,158,11,0.07)">
-        <td><input class="ac-input" type="text" value="${row.manualDesc||''}" placeholder="Descripción..." oninput="setManualDesc(${i},this.value)" style="width:100%"></td>
-        <td><span class="badge" style="background:#3d2c00;color:#fbbf24">Manual</span></td>
+      return `<tr style="background:#2a2200;border-left:3px solid #f59e0b">
+        <td style="padding:6px 8px"><input type="text" value="${row.manualDesc||''}" placeholder="Descripción del ítem..." oninput="setManualDesc(${i},this.value)" style="width:100%;height:28px;padding:0 8px;border:1px solid #555;border-radius:4px;background:#1a1d26;color:#e8eaf0;font-size:12px;font-family:inherit"></td>
+        <td style="padding:6px 8px;text-align:center"><span style="background:#3d2c00;color:#fbbf24;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700">Manual</span></td>
         <td></td>
-        <td style="text-align:right"><input type="number" value="${row.manualPrecio||''}" min="0" step="1" oninput="setManualPrecio(${i},this.value)" onclick="this.select()" placeholder="Precio unit." style="width:110px;height:28px;padding:0 8px;border:1px solid var(--border);border-radius:var(--radius, 6px);background:var(--bg3);color:var(--text);font-size:13px;text-align:right;font-weight:500"></td>
-        <td style="text-align:center"><input type="number" value="${row.qty}" min="1" onchange="setQty(${i},this.value)" style="width:54px;height:28px;padding:0 6px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text);font-size:13px;text-align:center"></td>
-        <td class="price" style="font-size:12px" id="mimp-${i}">${fmt(imp)}</td>
-        <td style="text-align:center"><button class="del" onclick="delRow(${i})">✕</button></td>
+        <td style="padding:6px 8px;text-align:right"><input type="number" value="${row.manualPrecio||0}" min="0" step="1" oninput="setManualPrecio(${i},this.value)" onclick="this.select()" placeholder="0" style="width:110px;height:28px;padding:0 8px;border:1px solid #f59e0b;border-radius:4px;background:#1a1d26;color:#fbbf24;font-size:13px;font-weight:600;text-align:right;font-family:inherit"></td>
+        <td style="padding:6px 8px;text-align:center"><input type="number" value="${row.qty}" min="1" onchange="setQty(${i},this.value)" style="width:54px;height:28px;padding:0 4px;border:1px solid #555;border-radius:4px;background:#1a1d26;color:#e8eaf0;font-size:13px;text-align:center;font-family:inherit"></td>
+        <td style="padding:6px 8px;text-align:right;font-weight:600;color:#e8eaf0;font-size:12px" id="mimp-${i}">${fmt(imp)}</td>
+        <td style="padding:6px 8px;text-align:center"><button onclick="delRow(${i})" style="background:none;border:none;cursor:pointer;color:#666;font-size:14px">✕</button></td>
       </tr>`;
     }
     const rowRec = row.recargo !== undefined ? row.recargo : cfg.recargo;
@@ -549,7 +549,7 @@ function setQty(i, v) {
 }
 function delRow(i) { presRows.splice(i, 1); savePres(); renderPres(); }
 function addRow(manual=false) {
-  presRows.push({ rid: Date.now(), pid: null, qty: 1, manual: (manual === true), manualDesc: '', manualPrecio: 0, recargo: cfg.recargo });
+  presRows.push({ rid: Date.now(), pid: null, qty: 1, manual: !!manual, manualDesc: '', manualPrecio: 0, recargo: cfg.recargo });
   savePres(); renderPres();
 }
 function clearPres() { if (presRows.length && !confirm('¿Limpiar presupuesto?')) return; presRows = []; savePres(); renderPres(); }
@@ -599,13 +599,19 @@ function printPres() {
   const fecha = new Date().toLocaleDateString('es-AR');
   const dPct = parseFloat(document.getElementById('dsc').value) || 0;
   let sub = 0;
-  const rows = presRows.filter(r => r.pid || (r.manual === true));
+  const rows = presRows.filter(r => r.pid || r.manual);
   const items = rows.map(r => {
-    let desc, fin;
-    if (r.manual) { desc = r.manualDesc || '(sin descripción)'; fin = parseFloat(r.manualPrecio)||0; }
-    else { const p = products.find(x => x.id === r.pid); desc = p ? p.descripcion : ''; fin = p ? calcFinal(p, r.recargo) : 0; }
-    sub += fin * r.qty;
-    return `<tr><td>${desc}</td><td class="c">${r.qty}</td><td class="r">${fmt(fin)}</td><td class="r">${fmt(fin*r.qty)}</td></tr>`;
+    let desc = '', fin = 0;
+    if (r.manual === true || r.manual === 'true') {
+      desc = r.manualDesc || '(sin descripción)';
+      fin = parseFloat(r.manualPrecio) || 0;
+    } else {
+      const p = products.find(x => x.id === r.pid);
+      if (p) { desc = p.descripcion; fin = calcFinal(p, r.recargo); }
+    }
+    const qty = parseInt(r.qty) || 1;
+    sub += fin * qty;
+    return `<tr><td>${desc}</td><td class="c">${qty}</td><td class="r">${fmt(fin)}</td><td class="r">${fmt(fin * qty)}</td></tr>`;
   }).join('');
   const dM = sub * dPct / 100;
   const tot = sub - dM;
