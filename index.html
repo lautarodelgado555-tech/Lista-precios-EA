@@ -1044,8 +1044,8 @@ function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
-  const idx = { lista: 0, pres: 1, admin: 2 }[name];
-  document.querySelectorAll('nav button')[idx].classList.add('active');
+  const idx = { lista: 0, pres: 1, admin: 2, carpetas: 3 }[name];
+  if (idx !== undefined) document.querySelectorAll('nav button')[idx].classList.add('active');
   if (name === 'lista') renderLista();
   if (name === 'pres') renderPres();
   if (name === 'carpetas') renderCarpetasLista();
