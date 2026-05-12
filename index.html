@@ -295,6 +295,36 @@ tr:hover td{background:var(--bg3)}
       <div id="excel-preview" style="font-size:12px;margin-bottom:10px;color:var(--text2)"></div>
       <button class="btn pri" id="import-btn" onclick="importExcel()" style="display:none">Importar productos</button>
     </div>
+    <div class="card">
+      <h3>🧹 Modo limpieza</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Seleccioná una marca, elegí los productos que <strong>no</strong> querés conservar y eliminalos de una vez.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+        <div class="adm-f" style="flex:1;min-width:180px">
+          <label>Marca a limpiar</label>
+          <select id="clean-marca" onchange="loadCleanProducts()"><option value="">— Elegí una marca —</option></select>
+        </div>
+        <div class="adm-f" style="flex:1;min-width:160px">
+          <label>Buscar dentro de la marca</label>
+          <input type="text" id="clean-q" placeholder="Filtrar por texto..." oninput="filterCleanProducts()">
+        </div>
+      </div>
+      <div id="clean-info" style="font-size:12px;color:var(--text3);margin-bottom:8px"></div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="btn" onclick="cleanSelectAll(true)">☑ Seleccionar todos</button>
+        <button class="btn" onclick="cleanSelectAll(false)">☐ Deseleccionar todos</button>
+        <button class="btn" id="clean-delete-btn" onclick="cleanDeleteSelected()" style="border-color:#f87171;color:#f87171;display:none">🗑 Eliminar seleccionados (<span id="clean-count">0</span>)</button>
+      </div>
+      <div class="tbl-wrap"><div class="tbl-scroll" style="max-height:400px">
+        <table><thead><tr>
+          <th style="width:5%;text-align:center"><input type="checkbox" id="clean-check-all" onchange="cleanSelectAll(this.checked)"></th>
+          <th style="width:55%">Descripción</th>
+          <th style="width:15%">Marca</th>
+          <th style="width:12%;text-align:right">P. lista</th>
+          <th style="width:13%;text-align:right">P. final</th>
+        </tr></thead>
+        <tbody id="tb-clean"></tbody></table>
+      </div></div>
+    </div>
   </div>
   </div>
 </div>
@@ -457,12 +487,13 @@ async function loadAll() {
 function populateMarcaDropdowns() {
   const marcaSet = new Set(products.map(p => p.marca));
   const marcas = Array.from(marcaSet).sort();
-  const filterIds = ['m-l', 'm-a', 'bulk-marca'];
+  const filterIds = ['m-l', 'm-a', 'bulk-marca', 'clean-marca'];
   filterIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    el.innerHTML = '<option value="">Todas las marcas</option>';
+    const emptyLabel = id === 'clean-marca' ? '— Elegí una marca —' : 'Todas las marcas';
+    el.innerHTML = '<option value="">' + emptyLabel + '</option>';
     marcas.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m; opt.textContent = m;
@@ -1567,6 +1598,120 @@ function imprimirCarpeta() {
     setTimeout(function() { w.print(); URL.revokeObjectURL(blobUrl); }, 400);
   });
 }
+// ═══════════════════════════ MODO LIMPIEZA ════════════════════════════
+
+let cleanAllProducts = [];
+let cleanFiltered = [];
+let cleanSelected = new Set();
+
+function loadCleanProducts() {
+  const marca = document.getElementById('clean-marca').value;
+  const info = document.getElementById('clean-info');
+  const tb = document.getElementById('tb-clean');
+  cleanSelected.clear();
+  updateCleanDeleteBtn();
+  if (!marca) {
+    tb.innerHTML = '<tr><td colspan="5" class="empty">Elegí una marca para empezar.</td></tr>';
+    info.textContent = '';
+    return;
+  }
+  cleanAllProducts = products.filter(function(p) { return p.marca === marca; });
+  document.getElementById('clean-q').value = '';
+  cleanFiltered = cleanAllProducts.slice();
+  renderCleanTable();
+  info.textContent = cleanAllProducts.length + ' productos en esta marca.';
+}
+
+function filterCleanProducts() {
+  const q = document.getElementById('clean-q').value.toLowerCase();
+  cleanFiltered = q
+    ? cleanAllProducts.filter(function(p) { return p.descripcion.toLowerCase().includes(q); })
+    : cleanAllProducts.slice();
+  renderCleanTable();
+}
+
+function renderCleanTable() {
+  const tb = document.getElementById('tb-clean');
+  if (!cleanFiltered.length) {
+    tb.innerHTML = '<tr><td colspan="5" class="empty">No hay productos que coincidan.</td></tr>';
+    updateCleanDeleteBtn(); return;
+  }
+  tb.innerHTML = cleanFiltered.map(function(p) {
+    const chk = cleanSelected.has(p.id) ? 'checked' : '';
+    const bg = cleanSelected.has(p.id) ? 'background:rgba(248,113,113,0.08)' : '';
+    return '<tr style="' + bg + '" id="cleanrow-' + p.id + '">' +
+      '<td style="text-align:center;padding:6px 8px"><input type="checkbox" ' + chk + ' onchange="toggleClean(' + p.id + ',this.checked)"></td>' +
+      '<td style="font-size:12px;padding:6px 8px">' + p.descripcion + '</td>' +
+      '<td style="padding:6px 8px">' + badge(p.marca) + '</td>' +
+      '<td style="text-align:right;font-size:12px;padding:6px 8px">' + fmtL(p) + '</td>' +
+      '<td style="text-align:right;font-size:12px;font-weight:500;padding:6px 8px">' + fmt(calcFinal(p)) + '</td>' +
+      '</tr>';
+  }).join('');
+  const allChk = cleanFiltered.length > 0 && cleanFiltered.every(function(p) { return cleanSelected.has(p.id); });
+  const hcb = document.getElementById('clean-check-all');
+  if (hcb) hcb.checked = allChk;
+  updateCleanDeleteBtn();
+}
+
+function toggleClean(id, checked) {
+  if (checked) cleanSelected.add(id); else cleanSelected.delete(id);
+  const row = document.getElementById('cleanrow-' + id);
+  if (row) row.style.background = checked ? 'rgba(248,113,113,0.08)' : '';
+  const allChk = cleanFiltered.length > 0 && cleanFiltered.every(function(p) { return cleanSelected.has(p.id); });
+  const hcb = document.getElementById('clean-check-all');
+  if (hcb) hcb.checked = allChk;
+  updateCleanDeleteBtn();
+}
+
+function cleanSelectAll(checked) {
+  cleanFiltered.forEach(function(p) {
+    if (checked) cleanSelected.add(p.id); else cleanSelected.delete(p.id);
+  });
+  renderCleanTable();
+  updateCleanDeleteBtn();
+}
+
+function updateCleanDeleteBtn() {
+  const btn = document.getElementById('clean-delete-btn');
+  const cnt = document.getElementById('clean-count');
+  if (!btn || !cnt) return;
+  const n = cleanSelected.size;
+  cnt.textContent = n;
+  btn.style.display = n > 0 ? 'inline-block' : 'none';
+}
+
+async function cleanDeleteSelected() {
+  const n = cleanSelected.size;
+  if (n === 0) return;
+  if (!confirm('Eliminar ' + n + ' producto' + (n !== 1 ? 's' : '') + '? Esta accion no se puede deshacer.')) return;
+  const btn = document.getElementById('clean-delete-btn');
+  btn.textContent = 'Eliminando...'; btn.disabled = true;
+  const ids = Array.from(cleanSelected);
+  let deleted = 0;
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50);
+    try {
+      await db.from('productos').update({ activo: false }).in('id', batch);
+      batch.forEach(function(id) {
+        products = products.filter(function(p) { return p.id !== id; });
+        cleanAllProducts = cleanAllProducts.filter(function(p) { return p.id !== id; });
+        cleanFiltered = cleanFiltered.filter(function(p) { return p.id !== id; });
+      });
+      deleted += batch.length;
+      btn.textContent = 'Eliminando... ' + deleted + '/' + ids.length;
+    } catch(e) { toast('Error: ' + e.message, false); break; }
+  }
+  cleanSelected.clear();
+  btn.textContent = '🗑 Eliminar seleccionados';
+  btn.disabled = false;
+  updateCleanDeleteBtn();
+  renderCleanTable();
+  renderLista();
+  const info = document.getElementById('clean-info');
+  if (info) info.textContent = cleanAllProducts.length + ' productos en esta marca.';
+  toast(deleted + ' producto' + (deleted !== 1 ? 's' : '') + ' eliminado' + (deleted !== 1 ? 's' : ''));
+}
+
 loadAll();
 </script>
 </body>
