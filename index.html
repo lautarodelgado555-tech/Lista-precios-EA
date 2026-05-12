@@ -200,7 +200,6 @@ tr:hover td{background:var(--bg3)}
     <button class="btn" onclick="addRow(false)">+ Buscar producto</button>
     <button class="btn warn" onclick="addRow(true)">+ Ítem manual</button>
     <button class="btn" onclick="clearPres()">🗑 Limpiar</button>
-    <button class="btn" onclick="savePres()">💾 Guardar</button>
     <button class="btn pri" onclick="printPres()">🖨 Imprimir</button>
   </div>
   <div class="totals">
@@ -390,6 +389,11 @@ function badge(m) {
   return `<span class="badge ${cls[m]||''}">${m}</span>`;
 }
 
+function round50(n) {
+  // Round to nearest multiple of 50
+  return Math.round(n / 50) * 50;
+}
+
 function calcFinal(p, rowRecargo) {
   const r = (rowRecargo !== undefined ? rowRecargo : cfg.recargo) / 100;
   const tc = cfg.tc;
@@ -399,7 +403,7 @@ function calcFinal(p, rowRecargo) {
   else if (p.ajuste === 'puente') b = b * 1.21 * (1 + r);
   else b = b * (1 + r);
   if (p.moneda === 'USD') b = b * tc;
-  return b;
+  return round50(b);
 }
 
 function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
