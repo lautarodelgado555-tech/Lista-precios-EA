@@ -501,19 +501,22 @@ function populateMarcaDropdowns() {
     });
     el.value = cur;
   });
-  // New product & import marca selects
-  ['nm','import-marca'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    const cur = el.value;
-    el.innerHTML = '';
+  // nm select: all marcas + VARIOS at end
+  const nmEl = document.getElementById('nm');
+  if (nmEl) {
+    const cur = nmEl.value;
+    nmEl.innerHTML = '';
     marcas.forEach(m => {
       const opt = document.createElement('option');
       opt.value = m; opt.textContent = m;
-      el.appendChild(opt);
+      nmEl.appendChild(opt);
     });
-    if (cur) el.value = cur;
-  });
+    const varios = document.createElement('option');
+    varios.value = 'VARIOS'; varios.textContent = 'VARIOS';
+    nmEl.appendChild(varios);
+    if (cur) nmEl.value = cur;
+  }
+  
 }
 
 function applyConfig() {
