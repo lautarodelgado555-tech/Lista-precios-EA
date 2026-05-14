@@ -1104,7 +1104,8 @@ function renderAdmin() {
   const q = (document.getElementById('qa')?.value || '').toLowerCase();
   const m = document.getElementById('ma')?.value || '';
   const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
-  document.getElementById('acnt').textContent = products.length;
+  const acntEl = document.getElementById('acnt');
+  if (acntEl) acntEl.textContent = products.length;
   const tb = document.getElementById('tb-a');
   if (!tb) return;
   if (!list.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No hay productos</td></tr>'; return; }
