@@ -537,7 +537,8 @@ function cfgChange(src) {
 function getFiltered() {
   const q = (document.getElementById('q-l').value || '').toLowerCase();
   const m = document.getElementById('m-l').value;
-  return products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m));
+  const words = q ? q.split(/\s+/).filter(w => w.length > 0) : [];
+  return products.filter(p => (!q || words.every(w => p.descripcion.toLowerCase().includes(w))) && (!m || p.marca === m));
 }
 
 function renderLista() {
@@ -629,7 +630,8 @@ function acSearch(i, q) {
   const inp = document.querySelector('#aw' + i + ' .ac-input');
   const drop = document.getElementById('ad' + i);
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
-  const matches = products.filter(p => p.descripcion.toLowerCase().includes(q.toLowerCase())).slice(0, 15);
+  const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 15);
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSel(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
@@ -1466,7 +1468,8 @@ function acSearchCarpeta(i, q) {
   const drop = document.getElementById('cacdrop-' + i);
   if (!drop) return;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
-  const matches = products.filter(p => p.descripcion.toLowerCase().includes(q.toLowerCase())).slice(0, 12);
+  const qwc = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+  const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 12);
   if (!matches.length) { drop.style.display = 'none'; return; }
   const inp = document.querySelector('#cacwrap-' + i + ' input');
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSelCarpeta(${i},${p.id})">
@@ -1679,7 +1682,7 @@ function loadCleanProducts() {
 function filterCleanProducts() {
   const q = document.getElementById('clean-q').value.toLowerCase();
   cleanFiltered = q
-    ? cleanAllProducts.filter(function(p) { return p.descripcion.toLowerCase().includes(q); })
+    ? cleanAllProducts.filter(function(p) { return q.split(/\s+/).filter(function(w){return w.length>0;}).every(function(w){return p.descripcion.toLowerCase().includes(w);}); })
     : cleanAllProducts.slice();
   renderCleanTable();
 }
