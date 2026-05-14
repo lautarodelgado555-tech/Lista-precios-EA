@@ -842,10 +842,13 @@ async function saveConfig() {
 async function addProd() {
   const desc = document.getElementById('nd').value.trim();
   const precio = parseFloat(document.getElementById('np').value);
+  const nmEl = document.getElementById('nm');
+  const marca = nmEl ? nmEl.value : '';
   if (!desc || !precio) { toast('Completá descripción y precio', false); return; }
+  if (!marca) { toast('Seleccioná una marca', false); return; }
   try {
     const r = await db.from('productos').insert({
-      descripcion: desc, marca: document.getElementById('nm').value,
+      descripcion: desc, marca: marca,
       precio_lista: precio, moneda: document.getElementById('nmon').value,
       ajuste: document.getElementById('naj').value, activo: true
     }).select().single();
@@ -957,11 +960,58 @@ function startEditLista(id) {
   const dCell = document.getElementById('ldesc-' + id);
   const pCell = document.getElementById('lprecio-' + id);
   const row   = document.getElementById('lrow-' + id);
+  const finalActual = calcFinal(p);
   dCell.innerHTML = `<input class="edit-input" id="led-${id}" value="${p.descripcion.replace(/"/g,'&quot;')}" style="width:100%">`;
-  pCell.innerHTML = `<input class="edit-input" id="lep-${id}" type="number" value="${p.precio_lista}" step="0.01" style="width:90px">`;
+  pCell.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:3px">
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:10px;color:var(--text3);width:50px">Lista:</span>
+        <input class="edit-input" id="lep-${id}" type="number" value="${p.precio_lista}" step="0.01" style="width:90px"
+          oninput="syncEditFinal(${id})">
+      </div>
+      <div style="display:flex;align-items:center;gap:4px">
+        <span style="font-size:10px;color:var(--text3);width:50px">Final:</span>
+        <input class="edit-input" id="lef-${id}" type="number" value="${finalActual}" step="1" style="width:90px;border-color:var(--accent2)"
+          oninput="syncEditLista(${id})">
+      </div>
+    </div>`;
   row.querySelector('td:last-child').innerHTML = `
     <button class="btn pri" style="height:26px;padding:0 10px;font-size:11px" onclick="saveEditLista(${id})">Guardar</button>
     <button class="btn" style="height:26px;padding:0 8px;font-size:11px;margin-left:4px" onclick="renderLista()">Cancelar</button>`;
+}
+
+function syncEditFinal(id) {
+  // When lista price changes, update the final price field
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const listaVal = parseFloat(document.getElementById('lep-' + id)?.value) || 0;
+  const tempP = Object.assign({}, p, { precio_lista: listaVal });
+  const finalVal = calcFinal(tempP);
+  const finalEl = document.getElementById('lef-' + id);
+  if (finalEl) finalEl.value = finalVal;
+}
+
+function syncEditLista(id) {
+  // When final price is entered, back-calculate the lista price
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  const finalDeseado = parseFloat(document.getElementById('lef-' + id)?.value) || 0;
+  if (finalDeseado <= 0) return;
+  const r = cfg.recargo / 100;
+  const tc = cfg.tc;
+  // Reverse the calcFinal formula based on ajuste type
+  let lista = finalDeseado;
+  // First undo USD conversion
+  if (p.moneda === 'USD') lista = lista / tc;
+  // Then undo round50
+  // (we work with the unrounded value — round50 is only for display)
+  // Undo the recargo multiplier
+  if (p.ajuste === 'trefilcon') lista = lista / ((1 - 0.35) * (1 + r));
+  else if (p.ajuste === 'varkaus') lista = lista / ((1 - 0.60) * 1.21 * (1 + r));
+  else if (p.ajuste === 'puente') lista = lista / (1.21 * (1 + r));
+  else lista = lista / (1 + r);
+  const listaEl = document.getElementById('lep-' + id);
+  if (listaEl) listaEl.value = Math.round(lista * 100) / 100;
 }
 async function saveEditLista(id) {
   const nd = document.getElementById('led-'+id)?.value.trim();
