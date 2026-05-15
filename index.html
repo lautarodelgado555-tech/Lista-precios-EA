@@ -350,8 +350,16 @@ tr:hover td{background:var(--bg3)}
     </div>
     <div id="carpetas-abiertas"></div>
     <div style="margin-top:20px">
-      <div style="font-size:13px;font-weight:600;color:var(--text3);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.5px">Cerradas</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="font-size:13px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">Cerradas</div>
+        <input type="text" id="carpetas-search" placeholder="Buscar por cliente..." oninput="filtrarCerradas()"
+          style="height:28px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);font-size:12px;width:200px;font-family:inherit">
+        <span id="carpetas-cerradas-info" style="font-size:11px;color:var(--text3)"></span>
+      </div>
       <div id="carpetas-cerradas"></div>
+      <div id="carpetas-cerradas-mas" style="display:none;margin-top:8px">
+        <button class="btn" onclick="verMasCerradas()" style="font-size:12px;width:100%">Ver más carpetas antiguas</button>
+      </div>
     </div>
   </div>
   <!-- Detalle de una carpeta -->
@@ -1159,6 +1167,8 @@ let carpetaActual = null;  // carpeta abierta actualmente
 let carpetas = [];          // lista de todas las carpetas
 
 // ── Cargar carpetas desde Supabase ───────────────────────────────────
+let carpetasVerTodas = false;  // toggle to show all closed
+
 async function loadCarpetas() {
   try {
     const r = await db.from('carpetas').select('*').order('updated_at', { ascending: false });
@@ -1170,22 +1180,64 @@ async function loadCarpetas() {
 async function renderCarpetasLista() {
   await loadCarpetas();
   const abiertas = carpetas.filter(c => c.estado === 'abierta');
-  const cerradas = carpetas.filter(c => c.estado === 'cerrada');
-
   const divAb = document.getElementById('carpetas-abiertas');
-  const divCe = document.getElementById('carpetas-cerradas');
-
   if (!abiertas.length) {
     divAb.innerHTML = '<div class="empty">No hay carpetas abiertas. Creá una nueva.</div>';
   } else {
     divAb.innerHTML = abiertas.map(c => { try { return carpetaCardHTML(c); } catch(e) { return ''; } }).join('');
   }
+  filtrarCerradas();
+}
 
-  if (!cerradas.length) {
-    divCe.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0">No hay carpetas cerradas.</div>';
+function filtrarCerradas() {
+  const q = (document.getElementById('carpetas-search')?.value || '').toLowerCase().trim();
+  const divCe = document.getElementById('carpetas-cerradas');
+  const divMas = document.getElementById('carpetas-cerradas-mas');
+  const info = document.getElementById('carpetas-cerradas-info');
+  const cerradas = carpetas.filter(c => c.estado === 'cerrada');
+
+  // Filter by search query (searches ALL closed, ignoring date limit)
+  const DIAS = 90;
+  const corte = new Date(Date.now() - DIAS * 24 * 60 * 60 * 1000);
+
+  let mostrar;
+  if (q) {
+    // Search mode: show all matching regardless of date
+    mostrar = cerradas.filter(c => (c.cliente || '').toLowerCase().includes(q));
+    if (divMas) divMas.style.display = 'none';
+    if (info) info.textContent = mostrar.length + ' resultado' + (mostrar.length !== 1 ? 's' : '');
   } else {
-    divCe.innerHTML = cerradas.map(c => { try { return carpetaCardHTML(c, true); } catch(e) { return ''; } }).join('');
+    // Default: show last 90 days
+    const recientes = cerradas.filter(c => new Date(c.updated_at) >= corte);
+    const antiguas = cerradas.filter(c => new Date(c.updated_at) < corte);
+    mostrar = recientes;
+    if (divMas) divMas.style.display = antiguas.length > 0 ? 'block' : 'none';
+    if (info) info.textContent = antiguas.length > 0
+      ? 'Últimos 90 días · ' + antiguas.length + ' más antigua' + (antiguas.length !== 1 ? 's' : '') + ' oculta' + (antiguas.length !== 1 ? 's' : '')
+      : '';
   }
+
+  if (!mostrar.length) {
+    divCe.innerHTML = q
+      ? '<div style="font-size:12px;color:var(--text3);padding:8px 0">No hay carpetas cerradas con ese nombre.</div>'
+      : '<div style="font-size:12px;color:var(--text3);padding:8px 0">No hay carpetas cerradas en los últimos 90 días.</div>';
+  } else {
+    divCe.innerHTML = mostrar.map(c => { try { return carpetaCardHTML(c, true); } catch(e) { return ''; } }).join('');
+  }
+}
+
+function verMasCerradas() {
+  // Show ALL closed carpetas (remove date filter)
+  const q = '';
+  const divSearch = document.getElementById('carpetas-search');
+  if (divSearch) divSearch.value = '';
+  const divCe = document.getElementById('carpetas-cerradas');
+  const divMas = document.getElementById('carpetas-cerradas-mas');
+  const info = document.getElementById('carpetas-cerradas-info');
+  const cerradas = carpetas.filter(c => c.estado === 'cerrada');
+  divCe.innerHTML = cerradas.map(c => { try { return carpetaCardHTML(c, true); } catch(e) { return ''; } }).join('');
+  if (divMas) divMas.style.display = 'none';
+  if (info) info.textContent = 'Mostrando todas (' + cerradas.length + ')';
 }
 
 function carpetaCardHTML(c, cerrada=false) {
