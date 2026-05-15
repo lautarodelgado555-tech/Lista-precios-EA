@@ -135,6 +135,23 @@ tr:hover td{background:var(--bg3)}
   </nav>
 </header>
 
+<div id="login-overlay" style="position:fixed;inset:0;background:#0f111a;display:flex;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:40px 48px;text-align:center;min-width:320px;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:24px">
+      <div style="background:#e8b400;border-radius:50%;width:44px;height:44px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:18px;color:#111">EA</div>
+      <div style="text-align:left">
+        <div style="font-size:16px;font-weight:700;color:var(--text)">Electricidad Alberdi</div>
+        <div style="font-size:11px;color:var(--text3)">Lista de precios</div>
+      </div>
+    </div>
+    <input type="password" id="login-pwd" placeholder="Contraseña"
+      style="width:100%;height:38px;padding:0 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit;box-sizing:border-box"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <div id="login-err" style="color:#f87171;font-size:12px;margin-bottom:10px;display:none">Contraseña incorrecta</div>
+    <button class="btn pri" onclick="doLogin()" style="width:100%;height:38px;font-size:14px">Ingresar</button>
+  </div>
+</div>
+
 <div id="page-lista" class="page active">
   <div class="cfg">
     <label>Recargo</label>
@@ -162,7 +179,7 @@ tr:hover td{background:var(--bg3)}
         <th style="width:40%">Descripción</th>
         <th style="width:12%">Marca</th>
         <th style="width:10%">Moneda</th>
-        <th style="width:14%;text-align:right">P. lista</th>
+        <th style="width:14%;text-align:right">Costo</th>
         <th style="width:16%;text-align:right">Precio final ARS</th>
         <th style="width:14%;text-align:center">Acciones</th>
       </tr></thead>
@@ -214,16 +231,7 @@ tr:hover td{background:var(--bg3)}
 </div>
 
 <div id="page-admin" class="page">
-  <div id="admin-lock" class="card">
-    <div class="admin-pass">
-      <div style="font-size:24px">🔒</div>
-      <div style="font-weight:600">Panel de administración</div>
-      <div style="font-size:12px;color:#888">Ingresá la contraseña para continuar</div>
-      <input type="password" id="admin-pwd" placeholder="Contraseña" onkeydown="if(event.key==='Enter')checkPwd()">
-      <button class="btn pri" onclick="checkPwd()">Ingresar</button>
-      <div id="pwd-err" style="font-size:12px;color:#dc2626;display:none">Contraseña incorrecta</div>
-    </div>
-  </div>
+  <div id="admin-lock" style="display:none"></div>
   <div id="admin-content" style="display:none">
     <div class="card">
       <h3>Configuración global</h3>
@@ -239,7 +247,7 @@ tr:hover td{background:var(--bg3)}
       <div class="admin-grid">
         <div class="adm-f" style="grid-column:span 2"><label>Descripción</label><input type="text" id="nd" placeholder="Nombre del producto"></div>
         <div class="adm-f"><label>Marca</label><select id="nm"></select></div>
-        <div class="adm-f"><label>Precio lista</label><input type="number" id="np" placeholder="0" step="0.01"></div>
+        <div class="adm-f"><label>Costo</label><input type="number" id="np" placeholder="0" step="0.01"></div>
         <div class="adm-f"><label>Moneda</label>
           <select id="nmon"><option value="ARS">ARS</option><option value="USD">USD</option></select>
         </div>
@@ -319,7 +327,7 @@ tr:hover td{background:var(--bg3)}
           <th style="width:5%;text-align:center"><input type="checkbox" id="clean-check-all" onchange="cleanSelectAll(this.checked)"></th>
           <th style="width:55%">Descripción</th>
           <th style="width:15%">Marca</th>
-          <th style="width:12%;text-align:right">P. lista</th>
+          <th style="width:12%;text-align:right">Costo</th>
           <th style="width:13%;text-align:right">P. final</th>
         </tr></thead>
         <tbody id="tb-clean"></tbody></table>
@@ -805,20 +813,23 @@ function printPres() {
     w.document.close(); w.print();
 }
 
-function checkPwd() {
-  const pwd = document.getElementById('admin-pwd').value;
+function doLogin() {
+  const pwd = document.getElementById('login-pwd').value;
   const stored = localStorage.getItem('adminPwd') || ADMIN_PWD;
   if (pwd === stored) {
-    document.getElementById('admin-lock').style.display = 'none';
-    document.getElementById('admin-content').style.display = 'block';
+    document.getElementById('login-overlay').style.display = 'none';
     adminUnlocked = true;
     populateMarcaDropdowns();
-    renderAdmin();
     loadAdminConfig();
+    renderLista();
   } else {
-    document.getElementById('pwd-err').style.display = 'block';
+    document.getElementById('login-err').style.display = 'block';
+    document.getElementById('login-pwd').value = '';
+    document.getElementById('login-pwd').focus();
   }
 }
+
+function checkPwd() { doLogin(); }
 
 async function loadAdminConfig() {
   try {
@@ -970,7 +981,7 @@ function startEditLista(id) {
   pCell.innerHTML = `
     <div style="display:flex;flex-direction:column;gap:3px">
       <div style="display:flex;align-items:center;gap:4px">
-        <span style="font-size:10px;color:var(--text3);width:50px">Lista:</span>
+        <span style="font-size:10px;color:var(--text3);width:50px">Costo:</span>
         <input class="edit-input" id="lep-${id}" type="number" value="${p.precio_lista}" step="0.01" style="width:90px"
           oninput="syncEditFinal(${id})">
       </div>
@@ -1136,6 +1147,10 @@ function showPage(name) {
   if (name === 'lista') renderLista();
   if (name === 'pres') renderPres();
   if (name === 'carpetas') renderCarpetasLista();
+  if (name === 'admin' && adminUnlocked) {
+    document.getElementById('admin-content').style.display = 'block';
+    populateMarcaDropdowns(); renderAdmin(); loadAdminConfig();
+  }
 }
 
 // ═══════════════════════════ CARPETAS JS ════════════════════════════
