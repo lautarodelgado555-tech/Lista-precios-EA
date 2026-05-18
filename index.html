@@ -623,7 +623,8 @@ function renderPres() {
             placeholder="Escribí para buscar..."
             oninput="acSearch(${i},this.value)"
             onfocus="acSearch(${i},this.value)"
-            onblur="setTimeout(()=>acClose(${i}),200)">
+            onblur="setTimeout(()=>acClose(${i}),200)"
+            onkeydown="acKeyNav(event,${i})">
           <div class="ac-drop" id="ad${i}" style="display:none"></div>
         </div>
       </td>
@@ -645,6 +646,69 @@ function renderPres() {
     </tr>`;
   }).join('');
   calcTot();
+}
+
+// Keyboard navigation state per row
+const acHiIdx = {};
+
+function acKeyNav(event, i) {
+  const drop = document.getElementById('ad' + i);
+  if (!drop || drop.style.display === 'none') return;
+  const items = drop.querySelectorAll('.ac-item');
+  if (!items.length) return;
+  if (acHiIdx[i] === undefined) acHiIdx[i] = -1;
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    acHiIdx[i] = Math.min(acHiIdx[i] + 1, items.length - 1);
+    items.forEach((el, idx) => el.classList.toggle('hi', idx === acHiIdx[i]));
+    items[acHiIdx[i]].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    acHiIdx[i] = Math.max(acHiIdx[i] - 1, 0);
+    items.forEach((el, idx) => el.classList.toggle('hi', idx === acHiIdx[i]));
+    items[acHiIdx[i]].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    if (acHiIdx[i] >= 0 && items[acHiIdx[i]]) {
+      items[acHiIdx[i]].dispatchEvent(new MouseEvent('mousedown'));
+      acHiIdx[i] = -1;
+    }
+  } else if (event.key === 'Escape') {
+    acClose(i);
+    acHiIdx[i] = -1;
+  }
+}
+
+const acHiIdxCarp = {};
+
+function acKeyNavCarpeta(event, i) {
+  const drop = document.getElementById('cacdrop-' + i);
+  if (!drop || drop.style.display === 'none') return;
+  const items = drop.querySelectorAll('.ac-item');
+  if (!items.length) return;
+  if (acHiIdxCarp[i] === undefined) acHiIdxCarp[i] = -1;
+
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    acHiIdxCarp[i] = Math.min(acHiIdxCarp[i] + 1, items.length - 1);
+    items.forEach((el, idx) => el.classList.toggle('hi', idx === acHiIdxCarp[i]));
+    items[acHiIdxCarp[i]].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    acHiIdxCarp[i] = Math.max(acHiIdxCarp[i] - 1, 0);
+    items.forEach((el, idx) => el.classList.toggle('hi', idx === acHiIdxCarp[i]));
+    items[acHiIdxCarp[i]].scrollIntoView({ block: 'nearest' });
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    if (acHiIdxCarp[i] >= 0 && items[acHiIdxCarp[i]]) {
+      items[acHiIdxCarp[i]].dispatchEvent(new MouseEvent('mousedown'));
+      acHiIdxCarp[i] = -1;
+    }
+  } else if (event.key === 'Escape') {
+    acCloseCarpeta(i);
+    acHiIdxCarp[i] = -1;
+  }
 }
 
 function acSearch(i, q) {
@@ -1377,6 +1441,7 @@ function renderCarpetaItems() {
             oninput="acSearchCarpeta(${i},this.value)"
             onfocus="acSearchCarpeta(${i},this.value)"
             onblur="setTimeout(()=>acCloseCarpeta(${i}),200)"
+            onkeydown="acKeyNavCarpeta(event,${i})"
             style="width:100%">
           <div class="ac-drop" id="cacdrop-${i}" style="display:none"></div>
         </div>`;
@@ -1557,6 +1622,7 @@ function acSearchCarpeta(i, q) {
     drop.style.width = rect.width + 'px';
   }
   drop.style.display = 'block';
+  acHiIdx[i] = -1;
 }
 
 function acSelCarpeta(i, pid) {
