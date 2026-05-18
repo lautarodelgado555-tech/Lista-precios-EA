@@ -578,10 +578,16 @@ function renderLista() {
   </tr>`).join('');
 }
 
+function getDefaultRecargo(marca) {
+  if (marca === 'CANDELA') return 100;
+  return cfg.recargo;
+}
+
 function addFromLista(id) {
   const p = products.find(x => x.id === id);
   if (!p) return;
-  presRows.push({ rid: Date.now(), pid: id, qty: 1, recargo: cfg.recargo });
+  const p = products.find(x => x.id === id);
+  presRows.push({ rid: Date.now(), pid: id, qty: 1, recargo: getDefaultRecargo(p ? p.marca : '') });
   savePres();
   renderPres();
   showPage('pres');
@@ -667,6 +673,8 @@ function acSearch(i, q) {
 function acClose(i) { const d = document.getElementById('ad' + i); if (d) d.style.display = 'none'; }
 function acSel(i, pid) {
   presRows[i].pid = pid;
+  const p = products.find(x => x.id === pid);
+  presRows[i].recargo = getDefaultRecargo(p ? p.marca : '');
   savePres(); acClose(i); renderPres();
 }
 function setQty(i, v) {
@@ -680,7 +688,7 @@ function setQty(i, v) {
 }
 function delRow(i) { presRows.splice(i, 1); savePres(); renderPres(); }
 function addRow(manual=false) {
-  presRows.push({ rid: Date.now(), pid: null, qty: 1, manual: !!manual, manualDesc: '', manualPrecio: 0, recargo: cfg.recargo });
+  presRows.push({ rid: Date.now(), pid: null, qty: 1, manual: !!manual, manualDesc: '', manualPrecio: 0, recargo: cfg.recargo }); // manual items always use global recargo
   savePres(); renderPres();
 }
 function clearPres() { if (presRows.length && !confirm('¿Limpiar presupuesto?')) return; presRows = []; savePres(); renderPres(); }
@@ -1449,7 +1457,7 @@ function addCarpetaRow(manual=false) {
   carpetaActual.items.push({
     pid: null, qty: 1, manual: !!manual,
     manualDesc: '', manualPrecio: 0,
-    recargo: cfg.recargo, cobrado: 0
+    recargo: cfg.recargo, cobrado: 0 // marca recargo applied when pid is set
   });
   guardaCarpeta();
   renderCarpetaItems();
@@ -1555,6 +1563,8 @@ function acSearchCarpeta(i, q) {
 function acSelCarpeta(i, pid) {
   if (!carpetaActual) return;
   carpetaActual.items[i].pid = pid;
+  const p = products.find(x => x.id === pid);
+  carpetaActual.items[i].recargo = getDefaultRecargo(p ? p.marca : '');
   guardaCarpeta();
   renderCarpetaItems();
 }
