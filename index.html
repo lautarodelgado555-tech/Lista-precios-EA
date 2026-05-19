@@ -570,7 +570,7 @@ function renderLista() {
     <td>${badge(p.marca)}</td>
     <td style="font-size:12px">${p.moneda}</td>
     <td class="price" style="font-size:12px" id="lprecio-${p.id}">${fmtL(p)}</td>
-    <td class="price" style="font-size:12px">${fmt(calcFinal(p))}</td>
+    <td class="price" style="font-size:12px">${fmt(calcFinal(p, getDefaultRecargo(p.marca)))}</td>
     <td style="text-align:center;white-space:nowrap">
       <button class="add-btn" onclick="addFromLista(${p.id})">+Pres.</button>
       ${adminUnlocked ? `<button class="add-btn" onclick="startEditLista(${p.id})" style="margin-left:3px">✏️</button><button class="add-btn" onclick="delProd(${p.id})" style="margin-left:3px;color:#f87171">🗑</button>` : ''}
@@ -688,7 +688,7 @@ function acSearch(i, q) {
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSel(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
-    <span class="ac-px">${fmt(calcFinal(p))}</span>
+    <span class="ac-px">${fmt(calcFinal(p, getDefaultRecargo(p.marca)))}</span>
   </div>`).join('');
   // Position dropdown using fixed coords to escape table overflow clipping
   if (inp) {
@@ -1177,7 +1177,7 @@ function renderAdmin() {
     <td>${badge(p.marca)}</td>
     <td style="font-size:12px">${p.moneda}</td>
     <td class="price" style="font-size:12px" id="precio-${p.id}">${fmtL(p)}</td>
-    <td class="price" style="font-size:12px">${fmt(calcFinal(p))}</td>
+    <td class="price" style="font-size:12px">${fmt(calcFinal(p, getDefaultRecargo(p.marca)))}</td>
     <td style="text-align:center;white-space:nowrap">
       <button class="del" onclick="startEdit(${p.id})" title="Editar" style="margin-right:4px">✏️</button>
       <button class="del" onclick="delProd(${p.id})" title="Eliminar">🗑</button>
