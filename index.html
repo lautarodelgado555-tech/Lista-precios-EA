@@ -115,6 +115,41 @@ tr:hover td{background:var(--bg3)}
 .admin-pass input{height:38px;padding:0 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg3);color:var(--text);font-size:14px;width:240px;text-align:center}
 /* Edit inline */
 .edit-input{height:26px;padding:0 6px;border:1px solid var(--accent);border-radius:4px;background:var(--bg3);color:var(--text);font-size:12px}
+
+/* ═══════════════════ RESPONSIVE MOBILE ═══════════════════ */
+@media (max-width: 640px) {
+  header{padding:8px 12px;height:auto;flex-wrap:wrap;gap:6px}
+  nav{margin-left:0;width:100%;overflow-x:auto;justify-content:flex-start;gap:2px;padding-bottom:2px}
+  nav button{padding:6px 10px;font-size:12px;flex-shrink:0;white-space:nowrap}
+  .page{padding:10px}
+  .cfg{gap:8px;padding:10px 12px}
+  .cfg input[type=number]{width:80px;height:36px;font-size:15px}
+  .cfg input[type=text]{height:36px;font-size:14px}
+  .sep{display:none}
+  .toolbar{flex-direction:column}
+  .toolbar input[type=text]{min-width:unset;width:100%;height:40px;font-size:14px}
+  .toolbar select{width:100%;height:40px;font-size:14px}
+  /* Lista de precios: ocultar Marca, Moneda, Costo — mostrar Descripción, Precio Final, Acciones */
+  table th:nth-child(2),table td:nth-child(2),
+  table th:nth-child(3),table td:nth-child(3),
+  table th:nth-child(4),table td:nth-child(4){display:none}
+  td{padding:10px 8px;font-size:13px}
+  th{padding:8px;font-size:10px}
+  .add-btn{padding:5px 8px;font-size:12px;height:32px}
+  /* Presupuesto: ocultar columna Marca */
+  .pt th:nth-child(2),.pt td:nth-child(2){display:none}
+  .pt th,.pt td{padding:8px 5px;font-size:12px}
+  .pt input[type=number]{width:44px;height:32px;font-size:13px}
+  .row-btns{gap:6px}
+  .btn{height:40px;padding:0 12px;font-size:13px}
+  .totals{gap:14px;padding:12px;justify-content:space-between}
+  .tv{font-size:14px}
+  .tv.big{font-size:20px}
+  .card{padding:12px}
+  .admin-grid{grid-template-columns:1fr}
+  .carpeta-card{padding:10px}
+  .tbl-scroll{overflow-x:auto}
+}
 </style>
 </head>
 <body>
