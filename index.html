@@ -403,6 +403,7 @@ tr:hover td{background:var(--bg3)}
       <span id="carpeta-estado-badge"></span>
       <button class="btn" onclick="imprimirCarpeta()" style="font-size:12px">🖨 Imprimir estado</button>
       <button class="btn pri" id="btn-cerrar-carpeta" onclick="cerrarCarpeta()" style="font-size:12px;background:#22c55e;border-color:#22c55e">✓ Cerrar carpeta</button>
+      <button class="btn" id="btn-reabrir-carpeta" onclick="reabrirCarpeta()" style="font-size:12px;display:none;border-color:#f59e0b;color:#f59e0b">↩ Reabrir carpeta</button>
     </div>
     <!-- Config recargo -->
     <div class="cfg" style="margin-bottom:12px">
@@ -1404,12 +1405,15 @@ async function abrirCarpeta(id) {
 
   const badge = document.getElementById('carpeta-estado-badge');
   const btnCerrar = document.getElementById('btn-cerrar-carpeta');
+  const btnReabrir = document.getElementById('btn-reabrir-carpeta');
   if (carpetaActual.estado === 'cerrada') {
     badge.innerHTML = '<span style="background:#22c55e;color:#fff;padding:3px 12px;border-radius:10px;font-size:11px;font-weight:700">CERRADA</span>';
     btnCerrar.style.display = 'none';
+    if (btnReabrir) btnReabrir.style.display = 'inline-block';
   } else {
     badge.innerHTML = '<span style="background:var(--accent);color:#fff;padding:3px 12px;border-radius:10px;font-size:11px;font-weight:700">ABIERTA</span>';
     btnCerrar.style.display = 'inline-block';
+    if (btnReabrir) btnReabrir.style.display = 'none';
   }
 
   renderCarpetaItems();
@@ -1665,6 +1669,15 @@ function guardaCarpeta() {
 }
 
 // ── Cerrar carpeta ───────────────────────────────────────────────────
+async function reabrirCarpeta() {
+  if (!carpetaActual) return;
+  if (!confirm('¿Reabrir esta carpeta?')) return;
+  carpetaActual.estado = 'abierta';
+  await db.from('carpetas').update({ estado: 'abierta', updated_at: new Date().toISOString() }).eq('id', carpetaActual.id);
+  toast('✓ Carpeta reabierta');
+  abrirCarpeta(carpetaActual.id);
+}
+
 async function cerrarCarpeta() {
   if (!carpetaActual) return;
   const total = parseFloat(document.getElementById('carp-total').textContent.replace(/[^0-9]/g,''));
