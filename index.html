@@ -764,11 +764,13 @@ function acSearch(i, q, el) {
   const ref = inp || document.querySelector('#aw' + i + ' .ac-input');
   if (ref) {
     const rect = ref.getBoundingClientRect();
-    // If the input is scrolled out of view (top < 0 or bottom > viewport), don't show
     const vh = window.innerHeight || document.documentElement.clientHeight;
     if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return; }
+    const dropHeight = Math.min(matches.length * 44, 260);
+    const spaceBelow = vh - rect.bottom;
+    const openUp = spaceBelow < dropHeight + 8 && rect.top > dropHeight;
     drop.style.position = 'fixed';
-    drop.style.top = (rect.bottom + 2) + 'px';
+    drop.style.top = openUp ? (rect.top - dropHeight - 2) + 'px' : (rect.bottom + 2) + 'px';
     drop.style.left = rect.left + 'px';
     drop.style.width = rect.width + 'px';
     drop.style.zIndex = '9999';
@@ -1672,8 +1674,11 @@ function acSearchCarpeta(i, q, el) {
     const rect = inp.getBoundingClientRect();
     const vh = window.innerHeight || document.documentElement.clientHeight;
     if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return; }
+    const dropHeight = Math.min(matches.length * 44, 260);
+    const spaceBelow = vh - rect.bottom;
+    const openUp = spaceBelow < dropHeight + 8 && rect.top > dropHeight;
     drop.style.position = 'fixed';
-    drop.style.top = (rect.bottom + 2) + 'px';
+    drop.style.top = openUp ? (rect.top - dropHeight - 2) + 'px' : (rect.bottom + 2) + 'px';
     drop.style.left = rect.left + 'px';
     drop.style.width = rect.width + 'px';
     drop.style.zIndex = '9999';
