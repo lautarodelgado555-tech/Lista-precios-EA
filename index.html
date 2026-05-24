@@ -689,8 +689,8 @@ function renderPres() {
         <div class="ac-wrap" id="aw${i}">
           <input class="ac-input" type="text" value="${p ? p.descripcion : ''}"
             placeholder="Escribí para buscar..."
-            oninput="acSearch(${i},this.value)"
-            onfocus="acSearch(${i},this.value)"
+            oninput="acSearch(${i},this.value,this)"
+            onfocus="acSearch(${i},this.value,this)"
             onblur="setTimeout(()=>acClose(${i}),200)">
           <div class="ac-drop" id="ad${i}" style="display:none"></div>
         </div>
@@ -747,9 +747,10 @@ document.addEventListener('keydown', function(event) {
   }
 });
 
-function acSearch(i, q) {
-  const inp = document.querySelector('#aw' + i + ' .ac-input');
+function acSearch(i, q, el) {
+  const inp = el || document.querySelector('#aw' + i + ' .ac-input');
   const drop = document.getElementById('ad' + i);
+  if (!drop) return;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
   const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 15);
@@ -759,8 +760,13 @@ function acSearch(i, q) {
     <span class="ac-px">${fmt(calcFinal(p, getDefaultRecargo(p.marca)))}</span>
   </div>`).join('');
   // Position dropdown using fixed coords to escape table overflow clipping
-  if (inp) {
-    const rect = inp.getBoundingClientRect();
+  // Always use the actual input element passed in, so scroll position doesn't affect coords
+  const ref = inp || document.querySelector('#aw' + i + ' .ac-input');
+  if (ref) {
+    const rect = ref.getBoundingClientRect();
+    // If the input is scrolled out of view (top < 0 or bottom > viewport), don't show
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return; }
     drop.style.position = 'fixed';
     drop.style.top = (rect.bottom + 2) + 'px';
     drop.style.left = rect.left + 'px';
@@ -1486,8 +1492,8 @@ function renderCarpetaItems() {
       fin = p ? calcFinal(p, recargo) : 0;
       descHTML = `<div class="ac-wrap" id="cacwrap-${i}">
           <input class="ac-input" type="text" value="${p ? p.descripcion : ''}" placeholder="Buscar producto..."
-            oninput="acSearchCarpeta(${i},this.value)"
-            onfocus="acSearchCarpeta(${i},this.value)"
+            oninput="acSearchCarpeta(${i},this.value,this)"
+            onfocus="acSearchCarpeta(${i},this.value,this)"
             onblur="setTimeout(()=>acCloseCarpeta(${i}),200)"
             style="width:100%">
           <div class="ac-drop" id="cacdrop-${i}" style="display:none"></div>
@@ -1650,23 +1656,27 @@ function setCarpetaManualPrecio(i, val) {
 }
 
 // Autocomplete for carpeta items (reuse same logic)
-function acSearchCarpeta(i, q) {
+function acSearchCarpeta(i, q, el) {
   const drop = document.getElementById('cacdrop-' + i);
   if (!drop) return;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qwc = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
   const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 12);
   if (!matches.length) { drop.style.display = 'none'; return; }
-  const inp = document.querySelector('#cacwrap-' + i + ' input');
+  const inp = el || document.querySelector('#cacwrap-' + i + ' input');
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSelCarpeta(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
     <span class="ac-px">${fmt(calcFinal(p, carpetaActual?.items[i]?.recargo ?? cfg.recargo))}</span>
   </div>`).join('');
   if (inp) {
     const rect = inp.getBoundingClientRect();
+    const vh = window.innerHeight || document.documentElement.clientHeight;
+    if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return; }
+    drop.style.position = 'fixed';
     drop.style.top = (rect.bottom + 2) + 'px';
     drop.style.left = rect.left + 'px';
     drop.style.width = rect.width + 'px';
+    drop.style.zIndex = '9999';
   }
   drop.style.display = 'block';
   acActiveIdx = -1;
