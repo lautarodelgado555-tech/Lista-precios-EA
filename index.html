@@ -692,7 +692,6 @@ function renderPres() {
             oninput="acSearch(${i},this.value,this)"
             onfocus="acSearch(${i},this.value,this)"
             onblur="setTimeout(()=>acClose(${i}),200)">
-          <div class="ac-drop" id="ad${i}" style="display:none"></div>
         </div>
       </td>
       <td>${p ? badge(p.marca) : ''}</td>
@@ -713,37 +712,6 @@ function renderPres() {
     </tr>`;
   }).join('');
   calcTot();
-}
-
-// Reposition any visible dropdown on scroll (handles page scroll with fixed positioning)
-window.addEventListener('scroll', function() {
-  const drops = document.querySelectorAll('.ac-drop');
-  drops.forEach(drop => {
-    if (drop.style.display === 'none') return;
-    const id = drop.id; // ad0, ad1, cacwrap-0, etc
-    const m = id.match(/^ad(\d+)$/);
-    const mc = id.match(/^cacdrop-(\d+)$/);
-    if (m) {
-      const inp = document.querySelector('#aw' + m[1] + ' .ac-input');
-      if (inp) repositionDrop(drop, inp);
-    } else if (mc) {
-      const inp = document.querySelector('#cacwrap-' + mc[1] + ' input');
-      if (inp) repositionDrop(drop, inp);
-    }
-  });
-}, { passive: true });
-
-function repositionDrop(drop, inp) {
-  const rect = inp.getBoundingClientRect();
-  const vh = window.innerHeight || document.documentElement.clientHeight;
-  if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return; }
-  const itemCount = drop.querySelectorAll('.ac-item').length;
-  const dropHeight = Math.min(itemCount * 44, 260);
-  const spaceBelow = vh - rect.bottom;
-  const openUp = spaceBelow < dropHeight + 8 && rect.top > dropHeight;
-  drop.style.top = openUp ? (rect.top - dropHeight - 2) + 'px' : (rect.bottom + 2) + 'px';
-  drop.style.left = rect.left + 'px';
-  drop.style.width = rect.width + 'px';
 }
 
 // Global keyboard navigation for autocomplete dropdowns
@@ -778,10 +746,36 @@ document.addEventListener('keydown', function(event) {
   }
 });
 
+// Shared dropdown rendered directly into <body> to avoid any table/overflow/stacking context issues
+let acDropEl = null;
+let acDropForIdx = -1;
+function getAcDrop() {
+  if (!acDropEl) {
+    acDropEl = document.createElement('div');
+    acDropEl.className = 'ac-drop';
+    acDropEl.style.display = 'none';
+    document.body.appendChild(acDropEl);
+  }
+  return acDropEl;
+}
+function positionDrop(drop, inp, matchCount) {
+  const rect = inp.getBoundingClientRect();
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+  if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return false; }
+  const dropHeight = Math.min(matchCount * 44, 260);
+  const spaceBelow = vh - rect.bottom;
+  const spaceAbove = rect.top;
+  const openUp = spaceAbove > spaceBelow && spaceAbove > 80;
+  drop.style.top = openUp ? Math.max(0, rect.top - dropHeight - 2) + 'px' : (rect.bottom + 2) + 'px';
+  drop.style.left = rect.left + 'px';
+  drop.style.width = rect.width + 'px';
+  drop.style.maxHeight = (openUp ? spaceAbove - 8 : Math.max(spaceBelow - 8, 80)) + 'px';
+  return true;
+}
 function acSearch(i, q, el) {
   const inp = el || document.querySelector('#aw' + i + ' .ac-input');
-  const drop = document.getElementById('ad' + i);
-  if (!drop) return;
+  const drop = getAcDrop();
+  acDropForIdx = i;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
   const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 15);
@@ -790,25 +784,9 @@ function acSearch(i, q, el) {
     <span class="ac-desc">${p.descripcion}</span>
     <span class="ac-px">${fmt(calcFinal(p, getDefaultRecargo(p.marca)))}</span>
   </div>`).join('');
-  // Position dropdown using fixed coords to escape table overflow clipping
-  // Always use the actual input element passed in, so scroll position doesn't affect coords
-  const ref = inp || document.querySelector('#aw' + i + ' .ac-input');
-  if (ref) {
-    const rect = ref.getBoundingClientRect();
-    const vh = window.innerHeight || document.documentElement.clientHeight;
-    if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return; }
-    const dropHeight = Math.min(matches.length * 44, 260);
-    const spaceBelow = vh - rect.bottom;
-    const openUp = spaceBelow < dropHeight + 8 && rect.top > dropHeight;
-    drop.style.position = 'fixed';
-    drop.style.top = openUp ? (rect.top - dropHeight - 2) + 'px' : (rect.bottom + 2) + 'px';
-    drop.style.left = rect.left + 'px';
-    drop.style.width = rect.width + 'px';
-    drop.style.zIndex = '9999';
-  }
-  drop.style.display = 'block';
+  if (inp && positionDrop(drop, inp, matches.length)) drop.style.display = 'block';
 }
-function acClose(i) { const d = document.getElementById('ad' + i); if (d) d.style.display = 'none'; }
+function acClose(i) { if (acDropEl) acDropEl.style.display = 'none'; acDropForIdx = -1; }
 function acSel(i, pid) {
   presRows[i].pid = pid;
   const p = products.find(x => x.id === pid);
@@ -1529,7 +1507,6 @@ function renderCarpetaItems() {
             onfocus="acSearchCarpeta(${i},this.value,this)"
             onblur="setTimeout(()=>acCloseCarpeta(${i}),200)"
             style="width:100%">
-          <div class="ac-drop" id="cacdrop-${i}" style="display:none"></div>
         </div>`;
       marcaHTML = p ? badge(p.marca) : '';
     }
@@ -1688,33 +1665,20 @@ function setCarpetaManualPrecio(i, val) {
   calcCarpetaTotales();
 }
 
-// Autocomplete for carpeta items (reuse same logic)
+// Autocomplete for carpeta items (reuses same shared body-level dropdown)
 function acSearchCarpeta(i, q, el) {
-  const drop = document.getElementById('cacdrop-' + i);
-  if (!drop) return;
+  const inp = el || document.querySelector('#cacwrap-' + i + ' input');
+  const drop = getAcDrop();
+  acDropForIdx = -1; // carpeta uses separate sel handler
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qwc = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
   const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 12);
   if (!matches.length) { drop.style.display = 'none'; return; }
-  const inp = el || document.querySelector('#cacwrap-' + i + ' input');
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSelCarpeta(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
     <span class="ac-px">${fmt(calcFinal(p, carpetaActual?.items[i]?.recargo ?? cfg.recargo))}</span>
   </div>`).join('');
-  if (inp) {
-    const rect = inp.getBoundingClientRect();
-    const vh = window.innerHeight || document.documentElement.clientHeight;
-    if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return; }
-    const dropHeight = Math.min(matches.length * 44, 260);
-    const spaceBelow = vh - rect.bottom;
-    const openUp = spaceBelow < dropHeight + 8 && rect.top > dropHeight;
-    drop.style.position = 'fixed';
-    drop.style.top = openUp ? (rect.top - dropHeight - 2) + 'px' : (rect.bottom + 2) + 'px';
-    drop.style.left = rect.left + 'px';
-    drop.style.width = rect.width + 'px';
-    drop.style.zIndex = '9999';
-  }
-  drop.style.display = 'block';
+  if (inp && positionDrop(drop, inp, matches.length)) drop.style.display = 'block';
   acActiveIdx = -1;
 }
 
@@ -1727,10 +1691,7 @@ function acSelCarpeta(i, pid) {
   renderCarpetaItems();
 }
 
-function acCloseCarpeta(i) {
-  const d = document.getElementById('cacdrop-' + i);
-  if (d) d.style.display = 'none';
-}
+function acCloseCarpeta(i) { if (acDropEl) acDropEl.style.display = 'none'; }
 
 // ── Guardar carpeta ──────────────────────────────────────────────────
 let guardaTimer = null;
