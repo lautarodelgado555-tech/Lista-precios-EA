@@ -560,7 +560,7 @@ async function loadAll() {
     }
     const saved = localStorage.getItem('presRows');
     if (saved) presRows = JSON.parse(saved);
-    // Corregir recargo de filas existentes si el producto tiene recargo por marca
+    // Normalizar recargo por marca al iniciar
     presRows.forEach(row => {
       if (!row.manual && row.pid) {
         const p = products.find(x => x.id === row.pid);
@@ -659,6 +659,7 @@ function renderLista() {
 
 function getDefaultRecargo(marca) {
   if (marca === 'CANDELA') return 100;
+  if (marca === 'TREFILCON') return 50;
   return cfg.recargo;
 }
 
@@ -789,7 +790,7 @@ function acSearch(i, q, el) {
   acDropForIdx = i;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 15);
+  const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w) || p.marca.toLowerCase().includes(w))).slice(0, 15);
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSel(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
@@ -1274,7 +1275,7 @@ function renderAdmin() {
   if (!adminUnlocked) return;
   const q = (document.getElementById('qa')?.value || '').toLowerCase();
   const m = document.getElementById('ma')?.value || '';
-  const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
+  const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q) || p.marca.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
   const acntEl = document.getElementById('acnt');
   if (acntEl) acntEl.textContent = products.length;
   const tb = document.getElementById('tb-a');
@@ -1686,7 +1687,7 @@ function acSearchCarpeta(i, q, el) {
   acDropForIdx = -1; // carpeta uses separate sel handler
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qwc = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 12);
+  const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w) || p.marca.toLowerCase().includes(w))).slice(0, 12);
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSelCarpeta(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
@@ -1789,7 +1790,6 @@ function imprimirCarpeta() {
       '<td style="padding:8px 10px;text-align:center;border-bottom:1px solid #efefef">' + qty + '</td>' +
       '<td style="padding:8px 10px;text-align:right;font-weight:500;border-bottom:1px solid #efefef">$' + Math.round(fin).toLocaleString('es-AR') + '</td>' +
       '<td style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #efefef">$' + Math.round(totalItem).toLocaleString('es-AR') + '</td>' +
-      '<td style="padding:8px 10px;text-align:right;color:' + estadoColor + ';font-weight:600;border-bottom:1px solid #efefef">' + estadoLabel + '</td>' +
       '</tr>';
   }).join('');
 
@@ -1848,13 +1848,10 @@ function imprimirCarpeta() {
     '<th style="width:38%">Descripcion</th>' +
     '<th style="width:7%;text-align:center">Cant.</th>' +
     '<th style="width:13%;text-align:right">P. unit.</th>' +
-    '<th style="width:14%;text-align:right">Total item</th>' +
-    '<th style="width:28%;text-align:right">Estado de cobro</th>' +
+    '<th style="width:42%;text-align:right">Total item</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table>' +
     '<div class="tw"><div class="tb">' +
     '<div class="trow"><span>Total presupuestado</span><span>$' + Math.round(total).toLocaleString('es-AR') + '</span></div>' +
-    '<div class="trow cob"><span>Total cobrado</span><span>$' + Math.round(cobradoTotal).toLocaleString('es-AR') + '</span></div>' +
-    '<div class="trow pen"><span>Saldo pendiente</span><span>$' + Math.round(pendienteTotal).toLocaleString('es-AR') + '</span></div>' +
     (carpetaActual.estado === 'cerrada' ? '<div class="trow fin"><span>CERRADA</span><span>&#10003;</span></div>' : '') +
     '</div></div>' +
     '<div class="foot" style="display:flex;justify-content:space-between;align-items:center">' +
@@ -2085,7 +2082,7 @@ async function cargarPresGuardado(id) {
   if (!p) return;
   if (presRows.length && !confirm('Esto reemplazará el presupuesto actual. ¿Continuar?')) return;
   presRows = p.items || [];
-  // Corregir recargo por marca al cargar presupuesto guardado
+  // Normalizar recargo por marca al cargar presupuesto guardado
   presRows.forEach(row => {
     if (!row.manual && row.pid) {
       const prod = products.find(x => x.id === row.pid);
