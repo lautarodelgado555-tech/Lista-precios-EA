@@ -652,7 +652,6 @@ function renderLista() {
 
 function getDefaultRecargo(marca) {
   if (marca === 'CANDELA') return 100;
-  if (marca === 'TREFILCON') return 50;
   return cfg.recargo;
 }
 
@@ -783,7 +782,7 @@ function acSearch(i, q, el) {
   acDropForIdx = i;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 15);
+  const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w) || p.marca.toLowerCase().includes(w))).slice(0, 15);
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSel(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
@@ -1268,7 +1267,7 @@ function renderAdmin() {
   if (!adminUnlocked) return;
   const q = (document.getElementById('qa')?.value || '').toLowerCase();
   const m = document.getElementById('ma')?.value || '';
-  const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
+  const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q) || p.marca.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
   const acntEl = document.getElementById('acnt');
   if (acntEl) acntEl.textContent = products.length;
   const tb = document.getElementById('tb-a');
@@ -1680,7 +1679,7 @@ function acSearchCarpeta(i, q, el) {
   acDropForIdx = -1; // carpeta uses separate sel handler
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qwc = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 12);
+  const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w) || p.marca.toLowerCase().includes(w))).slice(0, 12);
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSelCarpeta(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
