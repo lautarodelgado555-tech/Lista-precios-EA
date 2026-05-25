@@ -303,6 +303,51 @@ tr:hover td{background:var(--bg3)}
       <button class="btn pri" onclick="saveConfig()">Guardar configuración</button>
     </div>
     <div class="card">
+      <h3>Reglas de ajuste de precios</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">
+        Cada regla define cómo se transforma el precio de lista antes de aplicar el recargo.<br>
+        <strong>Fórmula:</strong> Precio final = Precio lista × (1 − Descuento) × IVA × (1 + Recargo%)
+      </p>
+      <div id="ajustes-table-wrap" style="margin-bottom:12px">
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:500">Nombre</th>
+            <th style="text-align:left;padding:6px 8px;color:var(--text3);font-weight:500">Etiqueta</th>
+            <th style="text-align:center;padding:6px 8px;color:var(--text3);font-weight:500">Descuento %</th>
+            <th style="text-align:center;padding:6px 8px;color:var(--text3);font-weight:500">IVA</th>
+            <th style="text-align:center;padding:6px 8px;color:var(--text3);font-weight:500">Acciones</th>
+          </tr></thead>
+          <tbody id="tb-ajustes"></tbody>
+        </table>
+      </div>
+      <div id="ajuste-form" style="background:var(--bg3);border-radius:8px;padding:12px;margin-top:8px">
+        <h4 style="margin:0 0 10px;font-size:13px;color:var(--text2)" id="ajuste-form-title">Nueva regla</h4>
+        <div class="admin-grid">
+          <div class="adm-f">
+            <label>Nombre interno (sin espacios, minúsculas)</label>
+            <input type="text" id="aj-nombre" placeholder="ej: cambre">
+          </div>
+          <div class="adm-f">
+            <label>Etiqueta visible</label>
+            <input type="text" id="aj-etiqueta" placeholder="ej: -30% + IVA + recargo (CAMBRE)">
+          </div>
+          <div class="adm-f">
+            <label>Descuento (ej: 0.35 para 35%)</label>
+            <input type="number" id="aj-descuento" placeholder="0" min="0" max="1" step="0.01">
+          </div>
+          <div class="adm-f">
+            <label>IVA (ej: 1.21 con IVA / 1 sin IVA)</label>
+            <input type="number" id="aj-iva" placeholder="1" min="1" step="0.01">
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn pri" onclick="saveAjuste()">Guardar regla</button>
+          <button class="btn" onclick="cancelAjusteEdit()" id="aj-cancel-btn" style="display:none">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
       <h3>Agregar producto</h3>
       <div class="admin-grid">
         <div class="adm-f" style="grid-column:span 2"><label>Descripción</label><input type="text" id="nd" placeholder="Nombre del producto"></div>
@@ -321,9 +366,6 @@ tr:hover td{background:var(--bg3)}
         <div class="adm-f"><label>Ajuste de cálculo</label>
           <select id="naj">
             <option value="none">Solo recargo</option>
-            <option value="trefilcon">-35% + recargo (TREFILCON)</option>
-            <option value="varkaus">-60% + IVA 21% + recargo (VARKAUS)</option>
-            <option value="puente">+IVA 21% + recargo (Puente Montajes)</option>
           </select>
         </div>
       </div>
@@ -361,9 +403,6 @@ tr:hover td{background:var(--bg3)}
         <label>Ajuste de cálculo para todos los productos importados</label>
         <select id="import-ajuste" style="width:260px">
           <option value="none">Solo recargo</option>
-          <option value="trefilcon">-35% + recargo (TREFILCON)</option>
-          <option value="varkaus">-60% + IVA 21% + recargo (VARKAUS)</option>
-          <option value="puente">+IVA 21% + recargo (Puente Montajes)</option>
         </select>
       </div>
       <input type="file" id="excel-file" accept=".xlsx,.xls" style="margin-bottom:10px" onchange="previewExcel(this)">
@@ -493,6 +532,7 @@ const { createClient } = supabase;
 const db = createClient(SUPA_URL, SUPA_KEY);
 
 let products = [];
+let ajustes = []; // loaded from Supabase
 let presRows = [];
 let cfg = { recargo: 75, tc: 1415 };
 let adminUnlocked = false;
@@ -508,14 +548,24 @@ function round50(n) {
   return Math.round(n / 50) * 50;
 }
 
+function getAjuste(nombre) {
+  return ajustes.find(a => a.nombre === nombre) || null;
+}
+
+function applyAjusteFormula(precio, ajusteNombre, recargo) {
+  const aj = getAjuste(ajusteNombre);
+  if (aj) return precio * (1 - (aj.descuento || 0)) * (aj.iva || 1) * (1 + recargo);
+  // Legacy fallback when ajustes table not yet loaded
+  if (ajusteNombre === 'varkaus') return precio * (1 - 0.60) * 1.21 * (1 + recargo);
+  if (ajusteNombre === 'puente')  return precio * 1.21 * (1 + recargo);
+  return precio * (1 + recargo); // none or trefilcon (new: no discount)
+}
+
 function calcFinal(p, rowRecargo) {
   const r = (rowRecargo !== undefined ? rowRecargo : cfg.recargo) / 100;
   const tc = cfg.tc;
   let b = parseFloat(p.precio_lista);
-  if (p.ajuste === 'trefilcon') b = b * (1 - 0.35) * (1 + r);
-  else if (p.ajuste === 'varkaus') b = b * (1 - 0.60) * 1.21 * (1 + r);
-  else if (p.ajuste === 'puente') b = b * 1.21 * (1 + r);
-  else b = b * (1 + r);
+  b = applyAjusteFormula(b, p.ajuste, r);
   if (p.moneda === 'USD') b = b * tc;
   return round50(b);
 }
@@ -529,9 +579,13 @@ function fmtL(p) {
 
 function fmtCosto(p) {
   let b = parseFloat(p.precio_lista);
-  if (p.ajuste === 'trefilcon') b = b * (1 - 0.35);
-  else if (p.ajuste === 'varkaus') b = b * (1 - 0.60) * 1.21;
-  else if (p.ajuste === 'puente') b = b * 1.21;
+  const aj = getAjuste(p.ajuste);
+  if (aj) b = b * (1 - (aj.descuento || 0)) * (aj.iva || 1);
+  else if (ajustes.length === 0) {
+    if (p.ajuste === 'trefilcon') b = b * (1 - 0.00); // new: no discount
+    else if (p.ajuste === 'varkaus') b = b * (1 - 0.60) * 1.21;
+    else if (p.ajuste === 'puente') b = b * 1.21;
+  }
   if (p.moneda === 'USD') return 'USD ' + b.toFixed(2);
   return '$' + Math.round(b).toLocaleString('es-AR');
 }
@@ -561,6 +615,20 @@ async function loadAll() {
     }
     products = allProducts;
 
+    // Load ajustes from Supabase
+    const ajRes = await db.from('ajustes').select('*').order('nombre');
+    if (ajRes.data && ajRes.data.length > 0) {
+      ajustes = ajRes.data;
+    } else {
+      // Seed defaults if table is empty
+      ajustes = [
+        { nombre: 'trefilcon', etiqueta: '+ recargo (TREFILCON)', descuento: 0, iva: 1 },
+        { nombre: 'varkaus',   etiqueta: '-60% + IVA 21% + recargo (VARKAUS)',  descuento: 0.60, iva: 1.21 },
+        { nombre: 'puente',    etiqueta: '+IVA 21% + recargo (Puente Montajes)', descuento: 0,    iva: 1.21 }
+      ];
+    }
+    populateAjusteSelects();
+
     const cfgRes = await db.from('configuracion').select('*').eq('id', 1).single();
     if (cfgRes.data) {
       cfg.recargo = parseFloat(cfgRes.data.recargo);
@@ -581,6 +649,24 @@ async function loadAll() {
   } catch(e) {
     toast('Error cargando datos: ' + e.message, false);
   }
+}
+
+function populateAjusteSelects() {
+  // Populate all <select> elements that list ajustes
+  const ids = ['naj', 'import-ajuste'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const cur = el.value;
+    el.innerHTML = '<option value="none">Solo recargo</option>';
+    ajustes.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.nombre;
+      opt.textContent = a.etiqueta;
+      el.appendChild(opt);
+    });
+    if (cur) el.value = cur;
+  });
 }
 
 function populateMarcaDropdowns() {
@@ -996,6 +1082,108 @@ async function loadAdminConfig() {
   } catch(e) {}
 }
 
+// ── AJUSTES CRUD ──────────────────────────────────────────────
+let editingAjusteId = null;
+
+function renderAjustesTable() {
+  const tbody = document.getElementById('tb-ajustes');
+  if (!tbody) return;
+  if (ajustes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:12px;color:var(--text3)">No hay reglas cargadas</td></tr>';
+    return;
+  }
+  tbody.innerHTML = ajustes.map(a => `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:6px 8px;font-family:monospace;font-size:12px">${a.nombre}</td>
+      <td style="padding:6px 8px">${a.etiqueta}</td>
+      <td style="padding:6px 8px;text-align:center">${((a.descuento||0)*100).toFixed(0)}%</td>
+      <td style="padding:6px 8px;text-align:center">${a.iva == 1.21 ? 'Con IVA (×1.21)' : 'Sin IVA (×1)'}</td>
+      <td style="padding:6px 8px;text-align:center">
+        <button class="add-btn" onclick="editAjuste('${a.nombre}')">✏️</button>
+        ${a.nombre !== 'none' ? `<button class="add-btn" onclick="deleteAjuste('${a.nombre}')" style="color:#f87171;margin-left:4px">🗑</button>` : ''}
+      </td>
+    </tr>`).join('');
+}
+
+function editAjuste(nombre) {
+  const a = ajustes.find(x => x.nombre === nombre);
+  if (!a) return;
+  editingAjusteId = a.id || null;
+  document.getElementById('aj-nombre').value = a.nombre;
+  document.getElementById('aj-nombre').disabled = true; // can't change key
+  document.getElementById('aj-etiqueta').value = a.etiqueta;
+  document.getElementById('aj-descuento').value = a.descuento || 0;
+  document.getElementById('aj-iva').value = a.iva || 1;
+  document.getElementById('ajuste-form-title').textContent = 'Editar regla: ' + a.nombre;
+  document.getElementById('aj-cancel-btn').style.display = '';
+}
+
+function cancelAjusteEdit() {
+  editingAjusteId = null;
+  document.getElementById('aj-nombre').value = '';
+  document.getElementById('aj-nombre').disabled = false;
+  document.getElementById('aj-etiqueta').value = '';
+  document.getElementById('aj-descuento').value = '';
+  document.getElementById('aj-iva').value = '';
+  document.getElementById('ajuste-form-title').textContent = 'Nueva regla';
+  document.getElementById('aj-cancel-btn').style.display = 'none';
+}
+
+async function saveAjuste() {
+  const nombre = document.getElementById('aj-nombre').value.trim().toLowerCase().replace(/\s+/g, '_');
+  const etiqueta = document.getElementById('aj-etiqueta').value.trim();
+  const descuento = parseFloat(document.getElementById('aj-descuento').value) || 0;
+  const iva = parseFloat(document.getElementById('aj-iva').value) || 1;
+
+  if (!nombre || !etiqueta) { toast('Completá nombre y etiqueta', false); return; }
+  if (descuento < 0 || descuento >= 1) { toast('Descuento debe ser entre 0 y 0.99', false); return; }
+  if (iva < 1) { toast('IVA debe ser ≥ 1 (ej: 1.21)', false); return; }
+
+  const row = { nombre, etiqueta, descuento, iva };
+
+  try {
+    if (editingAjusteId) {
+      // Update existing
+      const res = await db.from('ajustes').update(row).eq('id', editingAjusteId);
+      if (res.error) throw res.error;
+      const idx = ajustes.findIndex(a => a.id === editingAjusteId);
+      if (idx >= 0) ajustes[idx] = { ...ajustes[idx], ...row };
+    } else {
+      // Check duplicate nombre
+      if (ajustes.find(a => a.nombre === nombre)) { toast('Ya existe una regla con ese nombre', false); return; }
+      const res = await db.from('ajustes').insert(row).select().single();
+      if (res.error) throw res.error;
+      ajustes.push(res.data);
+    }
+    populateAjusteSelects();
+    renderAjustesTable();
+    cancelAjusteEdit();
+    toast('Regla guardada ✓');
+  } catch(e) {
+    toast('Error: ' + e.message, false);
+  }
+}
+
+async function deleteAjuste(nombre) {
+  const a = ajustes.find(x => x.nombre === nombre);
+  if (!a) return;
+  if (!confirm(`¿Eliminar la regla "${nombre}"?
+Los productos que la usen quedarán sin regla de ajuste.`)) return;
+  try {
+    if (a.id) {
+      const res = await db.from('ajustes').delete().eq('id', a.id);
+      if (res.error) throw res.error;
+    }
+    ajustes = ajustes.filter(x => x.nombre !== nombre);
+    populateAjusteSelects();
+    renderAjustesTable();
+    toast('Regla eliminada');
+  } catch(e) {
+    toast('Error: ' + e.message, false);
+  }
+}
+// ── END AJUSTES CRUD ───────────────────────────────────────────
+
 async function saveConfig() {
   const recargo = parseFloat(document.getElementById('cfg-recargo').value) || 75;
   const tc = parseFloat(document.getElementById('cfg-tc').value) || 1415;
@@ -1185,11 +1373,13 @@ function syncEditLista(id) {
   if (p.moneda === 'USD') lista = lista / tc;
   // Then undo round50
   // (we work with the unrounded value — round50 is only for display)
-  // Undo the recargo multiplier
-  if (p.ajuste === 'trefilcon') lista = lista / ((1 - 0.35) * (1 + r));
-  else if (p.ajuste === 'varkaus') lista = lista / ((1 - 0.60) * 1.21 * (1 + r));
-  else if (p.ajuste === 'puente') lista = lista / (1.21 * (1 + r));
-  else lista = lista / (1 + r);
+  // Undo ajuste + recargo
+  const ajRev = getAjuste(p.ajuste);
+  if (ajRev) {
+    lista = lista / ((1 - (ajRev.descuento || 0)) * (ajRev.iva || 1) * (1 + r));
+  } else if (p.ajuste === 'varkaus') { lista = lista / ((1 - 0.60) * 1.21 * (1 + r));
+  } else if (p.ajuste === 'puente')  { lista = lista / (1.21 * (1 + r));
+  } else { lista = lista / (1 + r); } // none or trefilcon (no discount)
   const listaEl = document.getElementById('lep-' + id);
   if (listaEl) listaEl.value = Math.round(lista * 100) / 100;
 }
@@ -1313,7 +1503,7 @@ function showPage(name) {
   if (name === 'carpetas') renderCarpetasLista();
   if (name === 'admin' && adminUnlocked) {
     document.getElementById('admin-content').style.display = 'block';
-    populateMarcaDropdowns(); renderAdmin(); loadAdminConfig();
+    populateMarcaDropdowns(); renderAdmin(); loadAdminConfig(); renderAjustesTable();
   }
 }
 
