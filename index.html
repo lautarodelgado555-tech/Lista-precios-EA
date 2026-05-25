@@ -527,6 +527,15 @@ function fmtL(p) {
     : '$' + Math.round(p.precio_lista).toLocaleString('es-AR');
 }
 
+function fmtCosto(p) {
+  let b = parseFloat(p.precio_lista);
+  if (p.ajuste === 'trefilcon') b = b * (1 - 0.35);
+  else if (p.ajuste === 'varkaus') b = b * (1 - 0.60) * 1.21;
+  else if (p.ajuste === 'puente') b = b * 1.21;
+  if (p.moneda === 'USD') return 'USD ' + b.toFixed(2);
+  return '$' + Math.round(b).toLocaleString('es-AR');
+}
+
 function toast(msg, ok=true) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -560,7 +569,6 @@ async function loadAll() {
     }
     const saved = localStorage.getItem('presRows');
     if (saved) presRows = JSON.parse(saved);
-    // Normalizar recargo por marca al iniciar
     presRows.forEach(row => {
       if (!row.manual && row.pid) {
         const p = products.find(x => x.id === row.pid);
@@ -633,7 +641,7 @@ function getFiltered() {
   const q = (document.getElementById('q-l').value || '').toLowerCase();
   const m = document.getElementById('m-l').value;
   const words = q ? q.split(/\s+/).filter(w => w.length > 0) : [];
-  return products.filter(p => (!q || words.every(w => p.descripcion.toLowerCase().includes(w))) && (!m || p.marca === m));
+  return products.filter(p => (!q || words.every(w => p.descripcion.toLowerCase().includes(w) || p.marca.toLowerCase().includes(w))) && (!m || p.marca === m));
 }
 
 function renderLista() {
@@ -648,7 +656,7 @@ function renderLista() {
     <td style="font-size:12px" id="ldesc-${p.id}">${p.descripcion}</td>
     <td>${badge(p.marca)}</td>
     <td style="font-size:12px">${p.moneda}</td>
-    <td class="price" style="font-size:12px" id="lprecio-${p.id}">${fmtL(p)}</td>
+    <td class="price" style="font-size:12px" id="lprecio-${p.id}">${fmtCosto(p)}</td>
     <td class="price" style="font-size:12px">${fmt(calcFinal(p, getDefaultRecargo(p.marca)))}</td>
     <td style="text-align:center;white-space:nowrap">
       <button class="add-btn" onclick="addFromLista(${p.id})">+Pres.</button>
@@ -2082,7 +2090,6 @@ async function cargarPresGuardado(id) {
   if (!p) return;
   if (presRows.length && !confirm('Esto reemplazará el presupuesto actual. ¿Continuar?')) return;
   presRows = p.items || [];
-  // Normalizar recargo por marca al cargar presupuesto guardado
   presRows.forEach(row => {
     if (!row.manual && row.pid) {
       const prod = products.find(x => x.id === row.pid);
