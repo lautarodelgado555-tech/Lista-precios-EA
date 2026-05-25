@@ -652,6 +652,7 @@ function renderLista() {
 
 function getDefaultRecargo(marca) {
   if (marca === 'CANDELA') return 100;
+  if (marca === 'TREFILCON') return 50;
   return cfg.recargo;
 }
 
@@ -1782,6 +1783,7 @@ function imprimirCarpeta() {
       '<td style="padding:8px 10px;text-align:center;border-bottom:1px solid #efefef">' + qty + '</td>' +
       '<td style="padding:8px 10px;text-align:right;font-weight:500;border-bottom:1px solid #efefef">$' + Math.round(fin).toLocaleString('es-AR') + '</td>' +
       '<td style="padding:8px 10px;text-align:right;font-weight:600;border-bottom:1px solid #efefef">$' + Math.round(totalItem).toLocaleString('es-AR') + '</td>' +
+      '<td style="padding:8px 10px;text-align:right;color:' + estadoColor + ';font-weight:600;border-bottom:1px solid #efefef">' + estadoLabel + '</td>' +
       '</tr>';
   }).join('');
 
@@ -1840,10 +1842,13 @@ function imprimirCarpeta() {
     '<th style="width:38%">Descripcion</th>' +
     '<th style="width:7%;text-align:center">Cant.</th>' +
     '<th style="width:13%;text-align:right">P. unit.</th>' +
-    '<th style="width:42%;text-align:right">Total item</th>' +
+    '<th style="width:14%;text-align:right">Total item</th>' +
+    '<th style="width:28%;text-align:right">Estado de cobro</th>' +
     '</tr></thead><tbody>' + filas + '</tbody></table>' +
     '<div class="tw"><div class="tb">' +
     '<div class="trow"><span>Total presupuestado</span><span>$' + Math.round(total).toLocaleString('es-AR') + '</span></div>' +
+    '<div class="trow cob"><span>Total cobrado</span><span>$' + Math.round(cobradoTotal).toLocaleString('es-AR') + '</span></div>' +
+    '<div class="trow pen"><span>Saldo pendiente</span><span>$' + Math.round(pendienteTotal).toLocaleString('es-AR') + '</span></div>' +
     (carpetaActual.estado === 'cerrada' ? '<div class="trow fin"><span>CERRADA</span><span>&#10003;</span></div>' : '') +
     '</div></div>' +
     '<div class="foot" style="display:flex;justify-content:space-between;align-items:center">' +
