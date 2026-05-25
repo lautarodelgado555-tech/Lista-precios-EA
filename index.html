@@ -870,12 +870,20 @@ function positionDrop(drop, inp, matchCount) {
   if (rect.bottom < 0 || rect.top > vh) { drop.style.display = 'none'; return false; }
   const dropHeight = Math.min(matchCount * 44, 260);
   const spaceBelow = vh - rect.bottom;
-  const spaceAbove = rect.top;
+  // spaceAbove: space above the TOP of the input (so the input itself stays visible)
+  const spaceAbove = rect.top - 4; // 4px gap between menu bottom and input top
   const openUp = spaceAbove > spaceBelow && spaceAbove > 80;
-  drop.style.top = openUp ? Math.max(0, rect.top - dropHeight - 2) + 'px' : (rect.bottom + 2) + 'px';
-  drop.style.left = rect.left + 'px';
+  if (openUp) {
+    // Menu opens upward: bottom of menu aligns with top of input, leaving input visible
+    const actualHeight = Math.min(dropHeight, spaceAbove - 4);
+    drop.style.top  = (rect.top - actualHeight - 4) + 'px';
+    drop.style.maxHeight = actualHeight + 'px';
+  } else {
+    drop.style.top  = (rect.bottom + 2) + 'px';
+    drop.style.maxHeight = Math.max(spaceBelow - 8, 80) + 'px';
+  }
+  drop.style.left  = rect.left + 'px';
   drop.style.width = rect.width + 'px';
-  drop.style.maxHeight = (openUp ? spaceAbove - 8 : Math.max(spaceBelow - 8, 80)) + 'px';
   return true;
 }
 function acSearch(i, q, el) {
