@@ -560,6 +560,13 @@ async function loadAll() {
     }
     const saved = localStorage.getItem('presRows');
     if (saved) presRows = JSON.parse(saved);
+    // Corregir recargo de filas existentes si el producto tiene recargo por marca
+    presRows.forEach(row => {
+      if (!row.manual && row.pid) {
+        const p = products.find(x => x.id === row.pid);
+        if (p) row.recargo = getDefaultRecargo(p.marca);
+      }
+    });
     populateMarcaDropdowns();
     renderLista();
     renderPres();
@@ -782,7 +789,7 @@ function acSearch(i, q, el) {
   acDropForIdx = i;
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qWords = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w) || p.marca.toLowerCase().includes(w))).slice(0, 15);
+  const matches = products.filter(p => qWords.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 15);
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSel(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
@@ -1267,7 +1274,7 @@ function renderAdmin() {
   if (!adminUnlocked) return;
   const q = (document.getElementById('qa')?.value || '').toLowerCase();
   const m = document.getElementById('ma')?.value || '';
-  const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q) || p.marca.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
+  const list = products.filter(p => (!q || p.descripcion.toLowerCase().includes(q)) && (!m || p.marca === m)).slice(0, 100);
   const acntEl = document.getElementById('acnt');
   if (acntEl) acntEl.textContent = products.length;
   const tb = document.getElementById('tb-a');
@@ -1679,7 +1686,7 @@ function acSearchCarpeta(i, q, el) {
   acDropForIdx = -1; // carpeta uses separate sel handler
   if (!q || q.length < 2) { drop.style.display = 'none'; return; }
   const qwc = q.toLowerCase().split(/\s+/).filter(w => w.length > 0);
-  const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w) || p.marca.toLowerCase().includes(w))).slice(0, 12);
+  const matches = products.filter(p => qwc.every(w => p.descripcion.toLowerCase().includes(w))).slice(0, 12);
   if (!matches.length) { drop.style.display = 'none'; return; }
   drop.innerHTML = matches.map(p => `<div class="ac-item" onmousedown="acSelCarpeta(${i},${p.id})">
     <span class="ac-desc">${p.descripcion}</span>
@@ -2078,6 +2085,13 @@ async function cargarPresGuardado(id) {
   if (!p) return;
   if (presRows.length && !confirm('Esto reemplazará el presupuesto actual. ¿Continuar?')) return;
   presRows = p.items || [];
+  // Corregir recargo por marca al cargar presupuesto guardado
+  presRows.forEach(row => {
+    if (!row.manual && row.pid) {
+      const prod = products.find(x => x.id === row.pid);
+      if (prod) row.recargo = getDefaultRecargo(prod.marca);
+    }
+  });
   presEditandoId = p.id;
   document.getElementById('cli').value = p.cliente || '';
   document.getElementById('dsc').value = p.descuento || 0;
