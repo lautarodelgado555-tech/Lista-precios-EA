@@ -439,6 +439,22 @@ tr:hover td{background:var(--bg3)}
         <tbody id="tb-clean"></tbody></table>
       </div></div>
     </div>
+    <div class="card">
+      <h3>✏️ Renombrar marca</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Corregí el nombre de una marca mal escrita. Se actualizarán <strong>todos los productos</strong> que tengan esa marca asignada.</p>
+      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:10px;flex-wrap:wrap">
+        <div class="adm-f" style="flex:1;min-width:200px">
+          <label>Marca actual (a corregir)</label>
+          <select id="rename-marca-old" onchange="renameMarcaPreview()"><option value="">— Elegí una marca —</option></select>
+        </div>
+        <div class="adm-f" style="flex:1;min-width:200px">
+          <label>Nombre nuevo (en MAYÚSCULAS)</label>
+          <input type="text" id="rename-marca-new" placeholder="Ej: VARKAUS" oninput="renameMarcaPreview()" style="height:32px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg3);color:var(--text);font-size:13px;text-transform:uppercase">
+        </div>
+      </div>
+      <div id="rename-marca-preview" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+      <button class="btn pri" id="rename-marca-btn" onclick="renameMarcaApply()" style="display:none">Renombrar marca</button>
+    </div>
   </div>
   </div>
 </div>
@@ -672,12 +688,12 @@ function populateAjusteSelects() {
 function populateMarcaDropdowns() {
   const marcaSet = new Set(products.map(p => p.marca));
   const marcas = Array.from(marcaSet).sort();
-  const filterIds = ['m-l', 'm-a', 'bulk-marca', 'clean-marca'];
+  const filterIds = ['m-l', 'm-a', 'bulk-marca', 'clean-marca', 'rename-marca-old'];
   filterIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
     const cur = el.value;
-    const emptyLabel = id === 'clean-marca' ? '— Elegí una marca —' : 'Todas las marcas';
+    const emptyLabel = (id === 'clean-marca' || id === 'rename-marca-old') ? '— Elegí una marca —' : 'Todas las marcas';
     el.innerHTML = '<option value="">' + emptyLabel + '</option>';
     marcas.forEach(m => {
       const opt = document.createElement('option');
@@ -1475,6 +1491,50 @@ async function applyBulk() {
   bulkMatches = [];
   toast(`✓ ${updated} productos actualizados`);
   renderAdmin(); renderLista();
+}
+
+// ─── Renombrar marca ───────────────────────────────────────────────
+function renameMarcaPreview() {
+  const oldName = document.getElementById('rename-marca-old').value;
+  const newName = (document.getElementById('rename-marca-new').value || '').trim().toUpperCase();
+  const preview = document.getElementById('rename-marca-preview');
+  const btn = document.getElementById('rename-marca-btn');
+  if (!oldName || !newName) { preview.textContent = ''; btn.style.display = 'none'; return; }
+  if (newName === oldName) { preview.innerHTML = '<span style="color:#f87171">El nombre nuevo es igual al actual.</span>'; btn.style.display = 'none'; return; }
+  if (newName === 'VARIOS') { preview.innerHTML = '<span style="color:#f87171">El nombre "VARIOS" está reservado.</span>'; btn.style.display = 'none'; return; }
+  const cntOld = products.filter(p => p.marca === oldName).length;
+  const cntNew = products.filter(p => p.marca === newName).length;
+  let msg = `<strong>${cntOld} producto(s)</strong> pasarán de "<strong>${oldName}</strong>" a "<strong>${newName}</strong>".`;
+  if (cntNew > 0) msg += ` <span style="color:#f59e0b">⚠ La marca "${newName}" ya existe con ${cntNew} producto(s); los grupos se unificarán.</span>`;
+  preview.innerHTML = msg;
+  btn.style.display = 'inline-block';
+}
+
+async function renameMarcaApply() {
+  const oldName = document.getElementById('rename-marca-old').value;
+  const newName = (document.getElementById('rename-marca-new').value || '').trim().toUpperCase();
+  if (!oldName) { toast('Seleccioná la marca a renombrar', false); return; }
+  if (!newName) { toast('Escribí el nombre nuevo', false); return; }
+  if (newName === 'VARIOS' || newName === oldName) return;
+  const cntOld = products.filter(p => p.marca === oldName).length;
+  if (!confirm(`¿Renombrar "${oldName}" a "${newName}"?\nSe actualizarán ${cntOld} productos.\nEsta acción no se puede deshacer.`)) return;
+  const btn = document.getElementById('rename-marca-btn');
+  btn.disabled = true; btn.textContent = 'Aplicando...';
+  try {
+    const res = await db.from('productos').update({ marca: newName, updated_at: new Date().toISOString() }).eq('marca', oldName);
+    if (res.error) throw res.error;
+    products.forEach(p => { if (p.marca === oldName) p.marca = newName; });
+    toast(`✓ Marca renombrada: ${oldName} → ${newName}`);
+    document.getElementById('rename-marca-old').value = '';
+    document.getElementById('rename-marca-new').value = '';
+    document.getElementById('rename-marca-preview').textContent = '';
+    btn.style.display = 'none';
+    populateMarcaDropdowns(); renderAdmin(); renderLista();
+  } catch(e) {
+    toast('Error: ' + e.message, false);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Renombrar marca';
+  }
 }
 
 function renderAdmin() {
