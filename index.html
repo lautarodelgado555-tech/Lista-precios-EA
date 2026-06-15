@@ -166,9 +166,10 @@ tr:hover td{background:var(--bg3)}
 /* === overrides para embeber la caja como solapa === */
 #page-caja.page{padding:0;max-width:none;margin:0;background:var(--canvas);min-height:calc(100vh - var(--ea-head-h,56px))}
 #page-caja .app,#page-caja .main{background:var(--canvas)}
-#page-caja .topbar{top:var(--ea-head-h,56px);z-index:6}
 #page-caja .app{min-height:calc(100vh - var(--ea-head-h,56px))}
-@media(min-width:921px){#page-caja .side{top:var(--ea-head-h,56px);height:calc(100vh - var(--ea-head-h,56px))}}
+#page-caja .side{position:static;height:auto;align-self:stretch}
+#page-caja .side-foot{display:none}
+#page-caja .topbar{top:var(--ea-head-h,56px);z-index:6}
 #page-caja .modal-bg{z-index:1000}
 #page-caja #boot{z-index:1200}
 /* neutralizar CSS global de la web (th/tr:hover oscuros) que se filtra a las tablas de la caja */
