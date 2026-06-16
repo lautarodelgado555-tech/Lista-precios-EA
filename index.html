@@ -649,12 +649,13 @@ tr:hover td{background:var(--bg3)}
               <div class="field" id="pagoGastoBox"><label>Concepto</label><input id="pConcepto" placeholder="Alquiler, sueldo, servicio…" autocomplete="off"></div>
               <div id="pagoProvBox" style="display:none">
                 <div class="field"><label>Proveedor <span style="color:var(--muted);font-weight:400">· baja su deuda</span></label><input id="pProv" placeholder="Elegí el proveedor…" autocomplete="off"></div>
-                <div class="field"><label>N° de factura <span style="color:var(--muted);font-weight:400">· opcional</span></label><input id="pFactura" placeholder="Ej: 0001-00012345" autocomplete="off"></div>
+                <div class="field"><label>N° de factura / nota de crédito <span style="color:var(--muted);font-weight:400">· opcional</span></label><input id="pFactura" placeholder="Ej: 0001-00012345" autocomplete="off"></div>
               </div>
               <div class="methods" style="grid-template-columns:1fr 1fr">
                 <button class="efvo" onclick="addPago('Efectivo')"><span class="ic">💵</span>Efectivo</button>
                 <button onclick="addPago('Transferencia')"><span class="ic">🏦</span>Transferencia</button>
               </div>
+              <button id="pagoNotaCred" type="button" onclick="addNotaCredProv()" style="display:none;width:100%;margin-top:10px;padding:13px;border:1.5px solid #0E6B6B;border-radius:14px;background:#fff;color:#0E6B6B;font-weight:700;cursor:pointer;font-size:14px">📝 Registrar nota de crédito <span style="font-weight:400;color:var(--muted)">· baja la deuda, no toca la caja</span></button>
               <p class="hint">La transferencia se informa pero <b>no sale de la caja</b>.</p>
             </div>
             <div id="mode-cc" style="display:none">
@@ -2805,7 +2806,8 @@ function tickCaja(){const c=document.getElementById('cajaHoy');c.classList.add('
 
 function addVenta(medio){const {el,n}=getAmt();if(!n){el.focus();return;}state.movimientos.push({id:id++,tipo:'venta',medio,monto:n,fecha:viewDate,hora:now()});el.value='';persist();render();tickCaja();toast('Venta cargada · '+medio+' '+ARS(n));}
 let pagoTipo='gasto';
-function setPagoTipo(t){pagoTipo=t;document.getElementById('pagoTipoGasto').classList.toggle('on',t==='gasto');document.getElementById('pagoTipoProv').classList.toggle('on',t==='prov');document.getElementById('pagoGastoBox').style.display=t==='gasto'?'':'none';document.getElementById('pagoProvBox').style.display=t==='prov'?'':'none';if(t==='prov')setTimeout(()=>document.getElementById('pProv').focus(),0);}
+function setPagoTipo(t){pagoTipo=t;document.getElementById('pagoTipoGasto').classList.toggle('on',t==='gasto');document.getElementById('pagoTipoProv').classList.toggle('on',t==='prov');document.getElementById('pagoGastoBox').style.display=t==='gasto'?'':'none';document.getElementById('pagoProvBox').style.display=t==='prov'?'':'none';document.getElementById('pagoNotaCred').style.display=t==='prov'?'':'none';if(t==='prov')setTimeout(()=>document.getElementById('pProv').focus(),0);}
+function addNotaCredProv(){const {el,n}=getAmt();if(!n){el.focus();return;}const prov=canonProv(document.getElementById('pProv').value);if(!prov){document.getElementById('pProv').focus();toast('Elegí un proveedor');return;}const ref=(document.getElementById('pFactura').value||'').trim();const mov={id:id++,tipo:'notacred',prov,monto:n,fecha:viewDate,hora:now(),concepto:'Nota de crédito'};if(ref)mov.factura=ref;state.movimientos.push(mov);el.value='';document.getElementById('pProv').value='';document.getElementById('pFactura').value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast('Nota de crédito · baja deuda de '+prov+' · '+ARS(n)+' · no toca la caja');}
 function addPago(medio){const {el,n}=getAmt();if(!n){el.focus();return;}const me=medio||'Efectivo';let prov='',concepto='',factura='';if(pagoTipo==='prov'){prov=canonProv(document.getElementById('pProv').value);if(!prov){document.getElementById('pProv').focus();toast('Elegí un proveedor');return;}concepto='Pago a '+prov;factura=(document.getElementById('pFactura').value||'').trim();}else{concepto=(document.getElementById('pConcepto').value||'').trim()||'Pago';}const mov={id:id++,tipo:'pago',medio:me,concepto,monto:n,fecha:viewDate,hora:now()};if(prov)mov.prov=prov;if(factura)mov.factura=factura;state.movimientos.push(mov);el.value='';document.getElementById('pConcepto').value='';document.getElementById('pProv').value='';document.getElementById('pFactura').value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast(prov?('Pago a '+prov+(factura?' · Fac '+factura:'')+' · baja su deuda · '+me+' '+ARS(n)):('Pago registrado · '+me+' '+ARS(n)));}
 function addCC(tp,medio){const {el,n}=getAmt();const c=document.getElementById('ccCliente');if(!n||!c.value){el.focus();c.focus();return;}const nom=c.value;const mov={id:id++,tipo:'cc',cliente:nom,ccTipo:tp,monto:n,fecha:viewDate,hora:now()};if(tp==='cobro')mov.medio=medio||'Efectivo';state.movimientos.push(mov);el.value='';c.value='';persist();render();tickCaja();toast(tp==='fio'?('Fiado cargado a '+nom):('Cobro '+(medio||'Efectivo')+' de '+nom));}
 function rm(x){state.movimientos=state.movimientos.filter(m=>m.id!==x);persist();render();renderProveedores();renderProvDatalists();}
@@ -2851,6 +2853,7 @@ function render(){
       let tg,col,t1,t2,amt,cls;
       if(m.tipo==='venta'){const ef=m.medio==='Efectivo';tg='Venta';col=ef?'var(--caja)':'var(--digital)';t1='Venta';t2=m.medio+(ef?'':' · no entra a la caja');amt=(ef?'+ ':'  ')+ARS(m.monto);cls=ef?'pos':'zero';}
       else if(m.tipo==='pago'){const tr=m.medio==='Transferencia';tg='Pago';col=tr?'var(--digital)':'var(--pagos)';t1=m.concepto;t2=(m.medio||'Efectivo')+(tr?' · no sale de la caja':'')+(m.prov?' · baja deuda '+m.prov:'')+(m.factura?' · Fac N° '+m.factura:'');amt=(tr?'  ':'− ')+ARS(m.monto);cls=tr?'zero':'neg';}
+      else if(m.tipo==='notacred'){tg='Nota créd.';col='#0E6B6B';t1='Nota de crédito';t2='baja deuda '+(m.prov||'')+(m.factura?' · Ref '+m.factura:'')+' · no toca la caja';amt='− '+ARS(m.monto);cls='zero';}
       else{const f=m.ccTipo==='fio';const tr=(!f&&m.medio==='Transferencia');tg='Cta Cte';col=(f||tr)?'var(--digital)':'var(--cc)';t1=m.cliente;t2=f?'Se llevó fiado · suma a su deuda · no entra a la caja':('Pagó su cuenta · '+(m.medio||'Efectivo')+(tr?' · no entra a la caja':''));amt=(f?'  ':(tr?'  ':'+ '))+ARS(m.monto);cls=f?'zero':(tr?'zero':'pos');}
       const row=document.createElement('div');row.className='mv';
       row.innerHTML=`<span class="tg" style="background:${col}">${tg}</span><div class="desc"><div class="t">${t1}</div><div class="s">${t2} · ${m.hora}</div></div><span class="amt ${cls}">${amt}</span><button class="ed" title="Corregir" onclick="openEdit(${m.id})">✎</button><button class="rm" title="Borrar" onclick="rm(${m.id})">✕</button>`;
@@ -2968,6 +2971,7 @@ function exportarExcel(){
   state.movimientos.forEach(m=>{let t,d,me;
     if(m.tipo==='venta'){t='Venta';d='';me=m.medio;}
     else if(m.tipo==='pago'){t='Pago';d=m.concepto+(m.factura?' · Fac N° '+m.factura:'');me=m.medio||'Efectivo';}
+    else if(m.tipo==='notacred'){t='Nota de crédito';d=(m.prov?'Proveedor '+m.prov:'')+(m.factura?' · Ref '+m.factura:'');me='—';}
     else{t='Cuenta corriente';d=m.cliente;me=m.ccTipo==='fio'?'Fiado':('Cobro '+(m.medio||'Efectivo'));}
     mov.push([m.fecha,m.hora,t,d,me,m.monto,cajaEffect(m)]);});
   const cc=[['Cliente','Saldo']];
@@ -3040,6 +3044,7 @@ function openEdit(mid){
   if(m.tipo==='venta'){const op=v=>`<option${m.medio===v?' selected':''}>${v}</option>`;
     campos=`<label class="el">Medio</label><select id="eMedio" class="ei">${op('Efectivo')}${op('Tarjeta')}${op('Transferencia')}${op('QR')}</select>`;}
   else if(m.tipo==='pago'){const med=m.medio||'Efectivo';const opp=v=>`<option${med===v?' selected':''}>${v}</option>`;const provOpts=`<option value=""${!m.prov?' selected':''}>— Ninguno (gasto general) —</option>`+PROVLIST().map(nn=>`<option${m.prov===nn?' selected':''}>${nn.replace(/</g,'&lt;')}</option>`).join('');campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}"><label class="el">Medio</label><select id="ePagoMedio" class="ei">${opp('Efectivo')}${opp('Transferencia')}</select><label class="el">Proveedor (baja su deuda)</label><select id="ePagoProv" class="ei">${provOpts}</select><label class="el">N° de factura</label><input id="ePagoFactura" class="ei" value="${(m.factura||'').replace(/"/g,'&quot;')}">`;}
+  else if(m.tipo==='notacred'){const provOpts=PROVLIST().map(nn=>`<option${m.prov===nn?' selected':''}>${nn.replace(/</g,'&lt;')}</option>`).join('');campos=`<label class="el">Proveedor (baja su deuda)</label><select id="ePagoProv" class="ei">${provOpts}</select><label class="el">N° / referencia</label><input id="ePagoFactura" class="ei" value="${(m.factura||'').replace(/"/g,'&quot;')}">`;}
   else{campos=`<label class="el">Cliente</label><input id="eCliente" class="ei" value="${(m.cliente||'').replace(/"/g,'&quot;')}"><label class="el">Tipo</label><select id="eCC" class="ei"><option value="fio"${m.ccTipo==='fio'?' selected':''}>Se llevó fiado</option><option value="cobro"${m.ccTipo==='cobro'?' selected':''}>Pagó su cuenta</option></select><label class="el">Medio (si es cobro)</label><select id="eCCMedio" class="ei"><option${(m.medio||'Efectivo')==='Efectivo'?' selected':''}>Efectivo</option><option${m.medio==='Transferencia'?' selected':''}>Transferencia</option></select>`;}
   document.getElementById('modalBody').innerHTML=`
     <div class="eyebrow" style="color:var(--navy)">Corregir movimiento</div>
@@ -3060,6 +3065,7 @@ function guardarEdit(mid){
   m.monto=n;
   if(m.tipo==='venta') m.medio=document.getElementById('eMedio').value;
   else if(m.tipo==='pago'){m.concepto=document.getElementById('eConcepto').value||'Pago'; m.medio=document.getElementById('ePagoMedio').value; const pv=document.getElementById('ePagoProv').value.trim(); if(pv)m.prov=pv; else delete m.prov; const fa=document.getElementById('ePagoFactura').value.trim(); if(fa)m.factura=fa; else delete m.factura; renderProveedores(); renderProvDatalists();}
+  else if(m.tipo==='notacred'){const pv=document.getElementById('ePagoProv').value.trim(); if(pv)m.prov=pv; const fa=document.getElementById('ePagoFactura').value.trim(); if(fa)m.factura=fa; else delete m.factura; renderProveedores(); renderProvDatalists();}
   else{m.cliente=document.getElementById('eCliente').value||m.cliente; m.ccTipo=document.getElementById('eCC').value; if(m.ccTipo==='cobro')m.medio=document.getElementById('eCCMedio').value; else delete m.medio;}
   persist(); render(); closeModal(); toast('Movimiento corregido');
 }
@@ -3132,8 +3138,8 @@ function renderCustom(){
   if(group==='ninguno'){
     cfEl('cfColA').textContent='Fecha'; cfEl('cfTitle').textContent='Detalle ('+movs.length+')'; bars.innerHTML='';
     const sorted=[...movs].sort((a,b)=>a.fecha.localeCompare(b.fecha));
-    body.innerHTML=sorted.map(m=>{let det;if(m.tipo==='venta')det='Venta · '+m.medio;else if(m.tipo==='pago')det='Pago · '+m.concepto;else det=(m.ccTipo==='fio'?'Fiado · ':'Cobro · ')+m.cliente;return `<tr><td>${m.fecha.split('-').reverse().join('/')}</td><td>${det}</td><td class="num">${ARS(m.monto)}</td></tr>`;}).join('')||rowEmpty(3);
-    cfLast={rows:sorted.map(m=>[m.fecha,(m.tipo==='venta'?'Venta '+m.medio:m.tipo==='pago'?'Pago '+m.concepto:(m.ccTipo==='fio'?'Fiado ':'Cobro ')+m.cliente),m.monto]),header:'Fecha;Detalle;Monto'};
+    body.innerHTML=sorted.map(m=>{let det;if(m.tipo==='venta')det='Venta · '+m.medio;else if(m.tipo==='pago')det='Pago · '+m.concepto;else if(m.tipo==='notacred')det='Nota de crédito · '+(m.prov||'');else det=(m.ccTipo==='fio'?'Fiado · ':'Cobro · ')+m.cliente;return `<tr><td>${m.fecha.split('-').reverse().join('/')}</td><td>${det}</td><td class="num">${ARS(m.monto)}</td></tr>`;}).join('')||rowEmpty(3);
+    cfLast={rows:sorted.map(m=>[m.fecha,(m.tipo==='venta'?'Venta '+m.medio:m.tipo==='pago'?'Pago '+m.concepto:m.tipo==='notacred'?'Nota de crédito '+(m.prov||''):(m.ccTipo==='fio'?'Fiado ':'Cobro ')+m.cliente),m.monto]),header:'Fecha;Detalle;Monto'};
     return;
   }
   const map=new Map();
@@ -3201,7 +3207,7 @@ function compartirPedidos(){
 function provSaldos(){
   const map=new Map(SEEDP.proveedores.map(p=>[p.n,{n:p.n,s:p.s}]));
   state.provMovimientos.forEach(m=>{if(!map.has(m.prov))map.set(m.prov,{n:m.prov,s:0});map.get(m.prov).s+=(m.tipo==='compra'?m.monto:-m.monto);});
-  state.movimientos.forEach(m=>{if(m.tipo==='pago'&&m.prov){if(!map.has(m.prov))map.set(m.prov,{n:m.prov,s:0});map.get(m.prov).s-=m.monto;}});
+  state.movimientos.forEach(m=>{if((m.tipo==='pago'||m.tipo==='notacred')&&m.prov){if(!map.has(m.prov))map.set(m.prov,{n:m.prov,s:0});map.get(m.prov).s-=m.monto;}});
   return [...map.values()];
 }
 function addProvMov(){
@@ -3218,24 +3224,26 @@ function renderProveedores(){
   document.getElementById('provTotal').textContent=ARS(conDeuda.reduce((s,p)=>s+p.s,0));
   document.getElementById('provCount').textContent=conDeuda.length;
   const max=Math.max(...saldos.map(p=>p.s),1);
-  document.getElementById('provBody').innerHTML=saldos.map(p=>`<tr class="clk" data-p="${p.n.replace(/"/g,'&quot;')}"><td><b>${p.n}</b></td><td><div class="who-bar" style="width:${Math.max(8,p.s/max*100)}%;background:#0E6B6B"></div></td><td class="num">${ARS(p.s)}</td></tr>`).join('')||rowEmpty(3);
+  document.getElementById('provBody').innerHTML=saldos.map(p=>{const fav=p.s<0;const bar=fav?'':`<div class="who-bar" style="width:${Math.max(8,p.s/max*100)}%;background:#0E6B6B"></div>`;const amt=fav?`<span style="color:var(--caja)">${ARS(Math.abs(p.s))} a favor</span>`:ARS(p.s);return `<tr class="clk" data-p="${p.n.replace(/"/g,'&quot;')}"><td><b>${p.n}</b></td><td>${bar}</td><td class="num">${amt}</td></tr>`;}).join('')||rowEmpty(3);
 }
 function openProveedor(name){
   const sal=provSaldos().find(p=>p.n===name);
   const hist=SEEDP.provMovs.filter(m=>m[1]===name).map(m=>({fecha:m[0],tipo:m[2],monto:m[3],hist:true}));
   const live=state.provMovimientos.filter(m=>m.prov===name).map(m=>({fecha:m.fecha,tipo:m.tipo,monto:m.monto,concepto:m.concepto,_src:'prov',_id:m.id}));
   const cajaPagos=state.movimientos.filter(m=>m.tipo==='pago'&&m.prov===name).map(m=>({fecha:m.fecha,tipo:'pago',monto:m.monto,concepto:(m.concepto||'Pago')+(m.factura?' · Fac N° '+m.factura:'')+' · desde caja ('+(m.medio||'Efectivo')+')',_src:'caja',_id:m.id}));
-  const movs=[...hist,...live,...cajaPagos].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const cajaNC=state.movimientos.filter(m=>m.tipo==='notacred'&&m.prov===name).map(m=>({fecha:m.fecha,tipo:'notacred',monto:m.monto,concepto:'Nota de crédito'+(m.factura?' · Ref '+m.factura:''),_src:'caja',_id:m.id}));
+  const movs=[...hist,...live,...cajaPagos,...cajaNC].sort((a,b)=>a.fecha.localeCompare(b.fecha));
   const netMovs=movs.reduce((s,m)=>s+(m.tipo==='compra'?m.monto:-m.monto),0);
   const saldoAnt=(sal?sal.s:0)-netMovs;
+  const sActual=sal?sal.s:0;
   const ne=String(name).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   let h=`<div class="eyebrow" style="color:#0E6B6B">Cuenta proveedor</div>
     <h3 style="font-family:var(--display);font-size:21px;margin:4px 0 2px">${name}</h3>
-    <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Le debo hoy: <b class="mono" style="color:var(--pagos);font-size:16px">${ARS(sal?sal.s:0)}</b></div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:18px">${sActual<0?'Saldo a favor: <b class="mono" style="color:var(--caja);font-size:16px">'+ARS(Math.abs(sActual))+'</b>':'Le debo hoy: <b class="mono" style="color:var(--pagos);font-size:16px">'+ARS(sActual)+'</b>'}</div>
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;margin-bottom:8px">Movimientos</div>`;
   if(movs.length){
     h+=`<div class="mv" style="animation:none;background:#F7F9FC"><span class="tg" style="background:#9DB1CC">Saldo</span><div class="desc"><div class="t">Saldo anterior</div><div class="s">arrastre de períodos previos a estos movimientos</div></div><span class="amt" style="color:var(--muted)">${ARS(saldoAnt)}</span></div>`;
-    movs.forEach(m=>{const c=m.tipo==='compra';const del=m._src?`<button onclick="delProvMovDetalle('${m._src}','${m._id}','${ne}')" title="Borrar movimiento" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 0 4px 10px">✕</button>`:'';h+=`<div class="mv" style="animation:none"><span class="tg" style="background:${c?'#0E6B6B':'var(--caja)'}">${c?'Compra':'Pago'}</span><div class="desc"><div class="t">${m.concepto||(c?'Compra':'Pago')}</div><div class="s">${m.fecha.split('-').reverse().join('/')}${m.hist?' · del Excel':''}</div></div><span class="amt" style="color:${c?'#0E6B6B':'var(--caja)'}">${(c?'+ ':'− ')+ARS(m.monto)}</span>${del}</div>`;});
+    movs.forEach(m=>{const c=m.tipo==='compra';const nc=m.tipo==='notacred';const lbl=c?'Compra':nc?'N. Créd.':'Pago';const cl=c?'#0E6B6B':nc?'#0E6B6B':'var(--caja)';const del=m._src?`<button onclick="delProvMovDetalle('${m._src}','${m._id}','${ne}')" title="Borrar movimiento" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 0 4px 10px">✕</button>`:'';h+=`<div class="mv" style="animation:none"><span class="tg" style="background:${cl}">${lbl}</span><div class="desc"><div class="t">${m.concepto||(c?'Compra':'Pago')}</div><div class="s">${m.fecha.split('-').reverse().join('/')}${m.hist?' · del Excel':''}</div></div><span class="amt" style="color:${cl}">${(c?'+ ':'− ')+ARS(m.monto)}</span>${del}</div>`;});
   }
   else h+='<div style="font-size:13px;color:var(--muted)">Sin movimientos cargados.</div>';
   document.getElementById('modalBody').innerHTML=h;document.getElementById('modal').classList.add('show');
@@ -3333,7 +3341,7 @@ function __cajaShow(){
   if(pc) pc.style.setProperty('--ea-head-h', h + 'px');
   if(!__cajaShow._ready){ __cajaShow._ready = true; init(); }
 }
-Object.assign(window, {addCC,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,delProvMovDetalle,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,setPagoTipo,togglePedido,__cajaShow:__cajaShow});
+Object.assign(window, {addCC,addNotaCredProv,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,delProvMovDetalle,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,setPagoTipo,togglePedido,__cajaShow:__cajaShow});
 window.addEventListener('resize', function(){
   var pc = document.getElementById('page-caja');
   if(pc && pc.classList.contains('active')) __cajaShow();
