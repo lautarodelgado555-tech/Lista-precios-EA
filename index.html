@@ -569,6 +569,8 @@ tr:hover td{background:var(--bg3)}
 
 
 <div id="page-caja" class="page">
+<div id="syncWarn" style="display:none;background:#fef3c7;color:#92400e;padding:9px 16px;font-size:13px;font-weight:600;text-align:center">⚠️ No se pudo conectar con la base. Tus datos se están guardando en este dispositivo. Avisá para revisar la tabla <b>ea_kv</b> en Supabase.</div>
+
 
 <div id="boot"><div class="l"><div class="spin"></div>Cargando datos…</div></div>
 <div class="app">
@@ -641,7 +643,10 @@ tr:hover td{background:var(--bg3)}
                 <button type="button" id="pagoTipoProv" onclick="setPagoTipo('prov')">A un proveedor</button>
               </div>
               <div class="field" id="pagoGastoBox"><label>Concepto</label><input id="pConcepto" placeholder="Alquiler, sueldo, servicio…" autocomplete="off"></div>
-              <div class="field" id="pagoProvBox" style="display:none"><label>Proveedor <span style="color:var(--muted);font-weight:400">· baja su deuda</span></label><input id="pProv" placeholder="Elegí el proveedor…" autocomplete="off"></div>
+              <div id="pagoProvBox" style="display:none">
+                <div class="field"><label>Proveedor <span style="color:var(--muted);font-weight:400">· baja su deuda</span></label><input id="pProv" placeholder="Elegí el proveedor…" autocomplete="off"></div>
+                <div class="field"><label>N° de factura <span style="color:var(--muted);font-weight:400">· opcional</span></label><input id="pFactura" placeholder="Ej: 0001-00012345" autocomplete="off"></div>
+              </div>
               <div class="methods" style="grid-template-columns:1fr 1fr">
                 <button class="efvo" onclick="addPago('Efectivo')"><span class="ic">💵</span>Efectivo</button>
                 <button onclick="addPago('Transferencia')"><span class="ic">🏦</span>Transferencia</button>
@@ -2711,19 +2716,31 @@ loadAll();
      clientes(id, nombre, saldo)        -- o derivar saldo de movimientos
      ajustes(clave, valor)              -- saldo_inicial
    ============================================================ */
+let __supaWarned=false;
+function __supaWarn(){ if(__supaWarned)return; __supaWarned=true; const b=document.getElementById('syncWarn'); if(b)b.style.display='block'; }
+const LS = {
+  get(k){ try{ const r=localStorage.getItem(k); return r==null?undefined:JSON.parse(r); }catch(e){ return undefined; } },
+  set(k,v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
 const DB = {
   async get(k, def){
+    const local = LS.get(k);
     try{
       const { data, error } = await db.from('ea_kv').select('valor').eq('clave', k).maybeSingle();
-      if (error || !data) return def;
-      return data.valor;
-    }catch(e){ console.warn('ea_kv get', k, e); return def; }
+      if (error) throw error;
+      if (data && data.valor!=null){ LS.set(k, data.valor); return data.valor; }
+      return local!==undefined ? local : def;
+    }catch(e){
+      console.warn('ea_kv get', k, e);
+      return local!==undefined ? local : def;
+    }
   },
   async set(k, v){
+    LS.set(k, v);
     try{
       const { error } = await db.from('ea_kv').upsert({ clave: k, valor: v, actualizado: new Date().toISOString() }, { onConflict: 'clave' });
-      if (error) console.warn('ea_kv set', k, error);
-    }catch(e){ console.warn('ea_kv set', k, e); }
+      if (error) throw error;
+    }catch(e){ console.warn('ea_kv set', k, e); __supaWarn(); }
   }
 };
 const K = { saldo:'ea:saldoInicial', movs:'ea:movimientos' };
@@ -2778,7 +2795,7 @@ function tickCaja(){const c=document.getElementById('cajaHoy');c.classList.add('
 function addVenta(medio){const {el,n}=getAmt();if(!n){el.focus();return;}state.movimientos.push({id:id++,tipo:'venta',medio,monto:n,fecha:viewDate,hora:now()});el.value='';persist();render();tickCaja();toast('Venta cargada · '+medio+' '+ARS(n));}
 let pagoTipo='gasto';
 function setPagoTipo(t){pagoTipo=t;document.getElementById('pagoTipoGasto').classList.toggle('on',t==='gasto');document.getElementById('pagoTipoProv').classList.toggle('on',t==='prov');document.getElementById('pagoGastoBox').style.display=t==='gasto'?'':'none';document.getElementById('pagoProvBox').style.display=t==='prov'?'':'none';if(t==='prov')setTimeout(()=>document.getElementById('pProv').focus(),0);}
-function addPago(medio){const {el,n}=getAmt();if(!n){el.focus();return;}const me=medio||'Efectivo';let prov='',concepto='';if(pagoTipo==='prov'){prov=(document.getElementById('pProv').value||'').trim();if(!prov){document.getElementById('pProv').focus();toast('Elegí un proveedor');return;}concepto='Pago a '+prov;}else{concepto=(document.getElementById('pConcepto').value||'').trim()||'Pago';}const mov={id:id++,tipo:'pago',medio:me,concepto,monto:n,fecha:viewDate,hora:now()};if(prov)mov.prov=prov;state.movimientos.push(mov);el.value='';document.getElementById('pConcepto').value='';document.getElementById('pProv').value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast(prov?('Pago a '+prov+' · baja su deuda · '+me+' '+ARS(n)):('Pago registrado · '+me+' '+ARS(n)));}
+function addPago(medio){const {el,n}=getAmt();if(!n){el.focus();return;}const me=medio||'Efectivo';let prov='',concepto='',factura='';if(pagoTipo==='prov'){prov=(document.getElementById('pProv').value||'').trim();if(!prov){document.getElementById('pProv').focus();toast('Elegí un proveedor');return;}concepto='Pago a '+prov;factura=(document.getElementById('pFactura').value||'').trim();}else{concepto=(document.getElementById('pConcepto').value||'').trim()||'Pago';}const mov={id:id++,tipo:'pago',medio:me,concepto,monto:n,fecha:viewDate,hora:now()};if(prov)mov.prov=prov;if(factura)mov.factura=factura;state.movimientos.push(mov);el.value='';document.getElementById('pConcepto').value='';document.getElementById('pProv').value='';document.getElementById('pFactura').value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast(prov?('Pago a '+prov+(factura?' · Fac '+factura:'')+' · baja su deuda · '+me+' '+ARS(n)):('Pago registrado · '+me+' '+ARS(n)));}
 function addCC(tp,medio){const {el,n}=getAmt();const c=document.getElementById('ccCliente');if(!n||!c.value){el.focus();c.focus();return;}const nom=c.value;const mov={id:id++,tipo:'cc',cliente:nom,ccTipo:tp,monto:n,fecha:viewDate,hora:now()};if(tp==='cobro')mov.medio=medio||'Efectivo';state.movimientos.push(mov);el.value='';c.value='';persist();render();tickCaja();toast(tp==='fio'?('Fiado cargado a '+nom):('Cobro '+(medio||'Efectivo')+' de '+nom));}
 function rm(x){state.movimientos=state.movimientos.filter(m=>m.id!==x);persist();render();renderProveedores();renderProvDatalists();}
 
@@ -2820,7 +2837,7 @@ function render(){
     [...hoy].reverse().forEach(m=>{
       let tg,col,t1,t2,amt,cls;
       if(m.tipo==='venta'){const ef=m.medio==='Efectivo';tg='Venta';col=ef?'var(--caja)':'var(--digital)';t1='Venta';t2=m.medio+(ef?'':' · no entra a la caja');amt=(ef?'+ ':'  ')+ARS(m.monto);cls=ef?'pos':'zero';}
-      else if(m.tipo==='pago'){const tr=m.medio==='Transferencia';tg='Pago';col=tr?'var(--digital)':'var(--pagos)';t1=m.concepto;t2=(m.medio||'Efectivo')+(tr?' · no sale de la caja':'')+(m.prov?' · baja deuda '+m.prov:'');amt=(tr?'  ':'− ')+ARS(m.monto);cls=tr?'zero':'neg';}
+      else if(m.tipo==='pago'){const tr=m.medio==='Transferencia';tg='Pago';col=tr?'var(--digital)':'var(--pagos)';t1=m.concepto;t2=(m.medio||'Efectivo')+(tr?' · no sale de la caja':'')+(m.prov?' · baja deuda '+m.prov:'')+(m.factura?' · Fac N° '+m.factura:'');amt=(tr?'  ':'− ')+ARS(m.monto);cls=tr?'zero':'neg';}
       else{const f=m.ccTipo==='fio';const tr=(!f&&m.medio==='Transferencia');tg='Cta Cte';col=tr?'var(--digital)':'var(--cc)';t1=m.cliente;t2=f?'Se llevó fiado':('Pagó su cuenta · '+(m.medio||'Efectivo')+(tr?' · no entra a la caja':''));amt=(f?'− ':(tr?'  ':'+ '))+ARS(m.monto);cls=f?'neg':(tr?'zero':'pos');}
       const row=document.createElement('div');row.className='mv';
       row.innerHTML=`<span class="tg" style="background:${col}">${tg}</span><div class="desc"><div class="t">${t1}</div><div class="s">${t2} · ${m.hora}</div></div><span class="amt ${cls}">${amt}</span><button class="ed" title="Corregir" onclick="openEdit(${m.id})">✎</button><button class="rm" title="Borrar" onclick="rm(${m.id})">✕</button>`;
@@ -2836,7 +2853,7 @@ function render(){
   document.getElementById('tPefvo').textContent=ARS(pagHoy);
   document.getElementById('tPtr').textContent=ARS(pagTrHoy);
   document.getElementById('tPtot').textContent=ARS(pagHoy+pagTrHoy);
-  document.getElementById('pBody').innerHTML = hoy.filter(m=>m.tipo==='pago').map(m=>`<tr><td>${m.hora}</td><td>${m.concepto}</td><td><span class="badge" style="background:${m.medio==='Transferencia'?'var(--digital)':'var(--pagos)'}">${m.medio||'Efectivo'}</span></td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(4);
+  document.getElementById('pBody').innerHTML = hoy.filter(m=>m.tipo==='pago').map(m=>`<tr><td>${m.hora}</td><td>${m.concepto}${m.factura?' · Fac N° '+m.factura:''}</td><td><span class="badge" style="background:${m.medio==='Transferencia'?'var(--digital)':'var(--pagos)'}">${m.medio||'Efectivo'}</span></td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(4);
 
   // cuenta corriente
   const deudores=clientesVivos().filter(c=>c.s>0.5).sort((a,b)=>b.s-a.s);
@@ -2936,7 +2953,7 @@ function exportarExcel(){
   const mov=[['Fecha','Hora','Tipo','Detalle','Medio','Monto','Efecto en caja']];
   state.movimientos.forEach(m=>{let t,d,me;
     if(m.tipo==='venta'){t='Venta';d='';me=m.medio;}
-    else if(m.tipo==='pago'){t='Pago';d=m.concepto;me=m.medio||'Efectivo';}
+    else if(m.tipo==='pago'){t='Pago';d=m.concepto+(m.factura?' · Fac N° '+m.factura:'');me=m.medio||'Efectivo';}
     else{t='Cuenta corriente';d=m.cliente;me=m.ccTipo==='fio'?'Fiado':('Cobro '+(m.medio||'Efectivo'));}
     mov.push([m.fecha,m.hora,t,d,me,m.monto,cajaEffect(m)]);});
   const cc=[['Cliente','Saldo']];
@@ -3007,7 +3024,7 @@ function openEdit(mid){
   let campos='';
   if(m.tipo==='venta'){const op=v=>`<option${m.medio===v?' selected':''}>${v}</option>`;
     campos=`<label class="el">Medio</label><select id="eMedio" class="ei">${op('Efectivo')}${op('Tarjeta')}${op('Transferencia')}${op('QR')}</select>`;}
-  else if(m.tipo==='pago'){const med=m.medio||'Efectivo';const opp=v=>`<option${med===v?' selected':''}>${v}</option>`;const provOpts=`<option value=""${!m.prov?' selected':''}>— Ninguno (gasto general) —</option>`+PROVLIST().map(nn=>`<option${m.prov===nn?' selected':''}>${nn.replace(/</g,'&lt;')}</option>`).join('');campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}"><label class="el">Medio</label><select id="ePagoMedio" class="ei">${opp('Efectivo')}${opp('Transferencia')}</select><label class="el">Proveedor (baja su deuda)</label><select id="ePagoProv" class="ei">${provOpts}</select>`;}
+  else if(m.tipo==='pago'){const med=m.medio||'Efectivo';const opp=v=>`<option${med===v?' selected':''}>${v}</option>`;const provOpts=`<option value=""${!m.prov?' selected':''}>— Ninguno (gasto general) —</option>`+PROVLIST().map(nn=>`<option${m.prov===nn?' selected':''}>${nn.replace(/</g,'&lt;')}</option>`).join('');campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}"><label class="el">Medio</label><select id="ePagoMedio" class="ei">${opp('Efectivo')}${opp('Transferencia')}</select><label class="el">Proveedor (baja su deuda)</label><select id="ePagoProv" class="ei">${provOpts}</select><label class="el">N° de factura</label><input id="ePagoFactura" class="ei" value="${(m.factura||'').replace(/"/g,'&quot;')}">`;}
   else{campos=`<label class="el">Cliente</label><input id="eCliente" class="ei" value="${(m.cliente||'').replace(/"/g,'&quot;')}"><label class="el">Tipo</label><select id="eCC" class="ei"><option value="fio"${m.ccTipo==='fio'?' selected':''}>Se llevó fiado</option><option value="cobro"${m.ccTipo==='cobro'?' selected':''}>Pagó su cuenta</option></select><label class="el">Medio (si es cobro)</label><select id="eCCMedio" class="ei"><option${(m.medio||'Efectivo')==='Efectivo'?' selected':''}>Efectivo</option><option${m.medio==='Transferencia'?' selected':''}>Transferencia</option></select>`;}
   document.getElementById('modalBody').innerHTML=`
     <div class="eyebrow" style="color:var(--navy)">Corregir movimiento</div>
@@ -3027,7 +3044,7 @@ function guardarEdit(mid){
   if(!n){toast('Poné un monto válido');return;}
   m.monto=n;
   if(m.tipo==='venta') m.medio=document.getElementById('eMedio').value;
-  else if(m.tipo==='pago'){m.concepto=document.getElementById('eConcepto').value||'Pago'; m.medio=document.getElementById('ePagoMedio').value; const pv=document.getElementById('ePagoProv').value.trim(); if(pv)m.prov=pv; else delete m.prov; renderProveedores(); renderProvDatalists();}
+  else if(m.tipo==='pago'){m.concepto=document.getElementById('eConcepto').value||'Pago'; m.medio=document.getElementById('ePagoMedio').value; const pv=document.getElementById('ePagoProv').value.trim(); if(pv)m.prov=pv; else delete m.prov; const fa=document.getElementById('ePagoFactura').value.trim(); if(fa)m.factura=fa; else delete m.factura; renderProveedores(); renderProvDatalists();}
   else{m.cliente=document.getElementById('eCliente').value||m.cliente; m.ccTipo=document.getElementById('eCC').value; if(m.ccTipo==='cobro')m.medio=document.getElementById('eCCMedio').value; else delete m.medio;}
   persist(); render(); closeModal(); toast('Movimiento corregido');
 }
@@ -3192,7 +3209,7 @@ function openProveedor(name){
   const sal=provSaldos().find(p=>p.n===name);
   const hist=SEEDP.provMovs.filter(m=>m[1]===name).map(m=>({fecha:m[0],tipo:m[2],monto:m[3],hist:true}));
   const live=state.provMovimientos.filter(m=>m.prov===name);
-  const cajaPagos=state.movimientos.filter(m=>m.tipo==='pago'&&m.prov===name).map(m=>({fecha:m.fecha,tipo:'pago',monto:m.monto,concepto:(m.concepto||'Pago')+' · desde caja ('+(m.medio||'Efectivo')+')'}));
+  const cajaPagos=state.movimientos.filter(m=>m.tipo==='pago'&&m.prov===name).map(m=>({fecha:m.fecha,tipo:'pago',monto:m.monto,concepto:(m.concepto||'Pago')+(m.factura?' · Fac N° '+m.factura:'')+' · desde caja ('+(m.medio||'Efectivo')+')'}));
   const movs=[...hist,...live,...cajaPagos].sort((a,b)=>a.fecha.localeCompare(b.fecha));
   let h=`<div class="eyebrow" style="color:#0E6B6B">Cuenta proveedor</div>
     <h3 style="font-family:var(--display);font-size:21px;margin:4px 0 2px">${name}</h3>
