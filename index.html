@@ -649,7 +649,10 @@ tr:hover td{background:var(--bg3)}
             <div id="mode-cc" style="display:none">
               <div class="field"><label>Cliente</label><input id="ccCliente" list="clientesDL" placeholder="Nombre del cliente…" autocomplete="off"></div>
               <datalist id="clientesDL"></datalist>
-              <div style="display:flex;gap:10px"><button class="btn btn-cc" onclick="addCC('fio')">Se llevó fiado</button><button class="btn btn-cc cobro" onclick="addCC('cobro')">Pagó su cuenta</button></div>
+              <button class="btn btn-cc" style="width:100%;margin-bottom:10px" onclick="addCC('fio')">Se llevó fiado</button>
+              <div style="font-size:12px;font-weight:600;color:var(--muted);margin:2px 0 6px">Pagó su cuenta:</div>
+              <div style="display:flex;gap:10px"><button class="btn btn-cc cobro" onclick="addCC('cobro','Efectivo')">💵 Efectivo</button><button class="btn btn-cc cobro" onclick="addCC('cobro','Transferencia')">🏦 Transferencia</button></div>
+              <p class="hint" style="text-align:left">El cobro por transferencia baja la deuda pero <b>no entra a la caja</b>.</p>
             </div>
           </div>
         </div>
@@ -2750,7 +2753,7 @@ const fmtLarga = d => new Date(d+'T12:00').toLocaleDateString('es-AR',{weekday:'
 function cajaEffect(m){
   if(m.tipo==='venta') return m.medio==='Efectivo' ? m.monto : 0;
   if(m.tipo==='pago')  return m.medio==='Transferencia' ? 0 : -m.monto;
-  if(m.tipo==='cc')    return m.ccTipo==='fio' ? -m.monto : m.monto;
+  if(m.tipo==='cc')    return m.ccTipo==='fio' ? -m.monto : (m.medio==='Transferencia' ? 0 : m.monto);
   return 0;
 }
 
@@ -2772,7 +2775,7 @@ function tickCaja(){const c=document.getElementById('cajaHoy');c.classList.add('
 
 function addVenta(medio){const {el,n}=getAmt();if(!n){el.focus();return;}state.movimientos.push({id:id++,tipo:'venta',medio,monto:n,fecha:viewDate,hora:now()});el.value='';persist();render();tickCaja();toast('Venta cargada · '+medio+' '+ARS(n));}
 function addPago(medio){const {el,n}=getAmt();const c=document.getElementById('pConcepto');const pv=document.getElementById('pProv');if(!n){el.focus();return;}const me=medio||'Efectivo';const prov=(pv&&pv.value.trim())||'';const mov={id:id++,tipo:'pago',medio:me,concepto:c.value||(prov?('Pago a '+prov):'Pago'),monto:n,fecha:viewDate,hora:now()};if(prov)mov.prov=prov;state.movimientos.push(mov);el.value='';c.value='';if(pv)pv.value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast(prov?('Pago a '+prov+' · baja su deuda · '+me+' '+ARS(n)):('Pago registrado · '+me+' '+ARS(n)));}
-function addCC(tp){const {el,n}=getAmt();const c=document.getElementById('ccCliente');if(!n||!c.value){el.focus();c.focus();return;}state.movimientos.push({id:id++,tipo:'cc',cliente:c.value,ccTipo:tp,monto:n,fecha:viewDate,hora:now()});el.value='';c.value='';persist();render();tickCaja();toast(tp==='fio'?'Fiado cargado a '+c.value:'Cobro registrado de '+c.value);}
+function addCC(tp,medio){const {el,n}=getAmt();const c=document.getElementById('ccCliente');if(!n||!c.value){el.focus();c.focus();return;}const nom=c.value;const mov={id:id++,tipo:'cc',cliente:nom,ccTipo:tp,monto:n,fecha:viewDate,hora:now()};if(tp==='cobro')mov.medio=medio||'Efectivo';state.movimientos.push(mov);el.value='';c.value='';persist();render();tickCaja();toast(tp==='fio'?('Fiado cargado a '+nom):('Cobro '+(medio||'Efectivo')+' de '+nom));}
 function rm(x){state.movimientos=state.movimientos.filter(m=>m.id!==x);persist();render();renderProveedores();renderProvDatalists();}
 
 function render(){
@@ -2784,7 +2787,7 @@ function render(){
   const digHoy  = sum(hoy.filter(m=>m.tipo==='venta'&&m.medio!=='Efectivo'),m=>m.monto);
   const pagHoy  = sum(hoy.filter(m=>m.tipo==='pago'&&m.medio!=='Transferencia'),m=>m.monto);
   const pagTrHoy= sum(hoy.filter(m=>m.tipo==='pago'&&m.medio==='Transferencia'),m=>m.monto);
-  const ccHoy   = sum(hoy.filter(m=>m.tipo==='cc'),m=> m.ccTipo==='fio'? m.monto : -m.monto);
+  const ccHoy   = sum(hoy.filter(m=>m.tipo==='cc'),m=> m.ccTipo==='fio'? m.monto : (m.medio==='Transferencia'? 0 : -m.monto));
   const cajaHoy = efvoHoy - pagHoy - ccHoy;
   const saldoTotal = state.saldoInicial + sum(todos, cajaEffect);
   T = {efvoHoy, digHoy, pagHoy, pagTrHoy, ccHoy, cajaHoy, saldoTotal};
@@ -2814,7 +2817,7 @@ function render(){
       let tg,col,t1,t2,amt,cls;
       if(m.tipo==='venta'){const ef=m.medio==='Efectivo';tg='Venta';col=ef?'var(--caja)':'var(--digital)';t1='Venta';t2=m.medio+(ef?'':' · no entra a la caja');amt=(ef?'+ ':'  ')+ARS(m.monto);cls=ef?'pos':'zero';}
       else if(m.tipo==='pago'){const tr=m.medio==='Transferencia';tg='Pago';col=tr?'var(--digital)':'var(--pagos)';t1=m.concepto;t2=(m.medio||'Efectivo')+(tr?' · no sale de la caja':'')+(m.prov?' · baja deuda '+m.prov:'');amt=(tr?'  ':'− ')+ARS(m.monto);cls=tr?'zero':'neg';}
-      else{const f=m.ccTipo==='fio';tg='Cta Cte';col='var(--cc)';t1=m.cliente;t2=f?'Se llevó fiado':'Pagó su cuenta';amt=(f?'− ':'+ ')+ARS(m.monto);cls=f?'neg':'pos';}
+      else{const f=m.ccTipo==='fio';const tr=(!f&&m.medio==='Transferencia');tg='Cta Cte';col=tr?'var(--digital)':'var(--cc)';t1=m.cliente;t2=f?'Se llevó fiado':('Pagó su cuenta · '+(m.medio||'Efectivo')+(tr?' · no entra a la caja':''));amt=(f?'− ':(tr?'  ':'+ '))+ARS(m.monto);cls=f?'neg':(tr?'zero':'pos');}
       const row=document.createElement('div');row.className='mv';
       row.innerHTML=`<span class="tg" style="background:${col}">${tg}</span><div class="desc"><div class="t">${t1}</div><div class="s">${t2} · ${m.hora}</div></div><span class="amt ${cls}">${amt}</span><button class="ed" title="Corregir" onclick="openEdit(${m.id})">✎</button><button class="rm" title="Borrar" onclick="rm(${m.id})">✕</button>`;
       tape.appendChild(row);
@@ -2931,7 +2934,7 @@ function exportarExcel(){
   state.movimientos.forEach(m=>{let t,d,me;
     if(m.tipo==='venta'){t='Venta';d='';me=m.medio;}
     else if(m.tipo==='pago'){t='Pago';d=m.concepto;me=m.medio||'Efectivo';}
-    else{t='Cuenta corriente';d=m.cliente;me=m.ccTipo==='fio'?'Fiado':'Cobro';}
+    else{t='Cuenta corriente';d=m.cliente;me=m.ccTipo==='fio'?'Fiado':('Cobro '+(m.medio||'Efectivo'));}
     mov.push([m.fecha,m.hora,t,d,me,m.monto,cajaEffect(m)]);});
   const cc=[['Cliente','Saldo']];
   clientesVivos().filter(c=>Math.abs(c.s)>0.5).sort((a,b)=>b.s-a.s).forEach(c=>cc.push([c.n,c.s]));
@@ -2986,7 +2989,7 @@ function openCliente(key){
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;margin-bottom:8px">Movimientos</div>
     <div class="mv" style="animation:none"><span class="tg" style="background:#8896A6">Inicial</span><div class="desc"><div class="t">Saldo traído del Excel</div></div><span class="amt mono">${ARS(base?base.s:0)}</span></div>`;
   if(movs.length) movs.forEach(m=>{const f=m.ccTipo==='fio';
-    h+=`<div class="mv" style="animation:none"><span class="tg" style="background:var(--cc)">${f?'Fiado':'Cobro'}</span><div class="desc"><div class="t">${f?'Se llevó fiado':'Pagó su cuenta'}</div><div class="s">${m.fecha.split('-').reverse().join('/')}</div></div><span class="amt" style="color:${f?'var(--pagos)':'var(--caja)'}">${(f?'+ ':'− ')+ARS(m.monto)}</span></div>`;});
+    h+=`<div class="mv" style="animation:none"><span class="tg" style="background:var(--cc)">${f?'Fiado':'Cobro'}</span><div class="desc"><div class="t">${f?'Se llevó fiado':('Pagó su cuenta'+(m.medio?' · '+m.medio:''))}</div><div class="s">${m.fecha.split('-').reverse().join('/')}</div></div><span class="amt" style="color:${f?'var(--pagos)':'var(--caja)'}">${(f?'+ ':'− ')+ARS(m.monto)}</span></div>`;});
   else h+=`<div style="font-size:13px;color:var(--muted)">Sin movimientos cargados en la app todavía.</div>`;
   document.getElementById('modalBody').innerHTML=h;
   document.getElementById('modal').classList.add('show');
@@ -3002,7 +3005,7 @@ function openEdit(mid){
   if(m.tipo==='venta'){const op=v=>`<option${m.medio===v?' selected':''}>${v}</option>`;
     campos=`<label class="el">Medio</label><select id="eMedio" class="ei">${op('Efectivo')}${op('Tarjeta')}${op('Transferencia')}${op('QR')}</select>`;}
   else if(m.tipo==='pago'){const med=m.medio||'Efectivo';const opp=v=>`<option${med===v?' selected':''}>${v}</option>`;campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}"><label class="el">Medio</label><select id="ePagoMedio" class="ei">${opp('Efectivo')}${opp('Transferencia')}</select><label class="el">Proveedor (opcional · baja su deuda)</label><input id="ePagoProv" class="ei" list="provPagoDL" value="${(m.prov||'').replace(/"/g,'&quot;')}">`;}
-  else{campos=`<label class="el">Cliente</label><input id="eCliente" class="ei" value="${(m.cliente||'').replace(/"/g,'&quot;')}"><label class="el">Tipo</label><select id="eCC" class="ei"><option value="fio"${m.ccTipo==='fio'?' selected':''}>Se llevó fiado</option><option value="cobro"${m.ccTipo==='cobro'?' selected':''}>Pagó su cuenta</option></select>`;}
+  else{campos=`<label class="el">Cliente</label><input id="eCliente" class="ei" value="${(m.cliente||'').replace(/"/g,'&quot;')}"><label class="el">Tipo</label><select id="eCC" class="ei"><option value="fio"${m.ccTipo==='fio'?' selected':''}>Se llevó fiado</option><option value="cobro"${m.ccTipo==='cobro'?' selected':''}>Pagó su cuenta</option></select><label class="el">Medio (si es cobro)</label><select id="eCCMedio" class="ei"><option${(m.medio||'Efectivo')==='Efectivo'?' selected':''}>Efectivo</option><option${m.medio==='Transferencia'?' selected':''}>Transferencia</option></select>`;}
   document.getElementById('modalBody').innerHTML=`
     <div class="eyebrow" style="color:var(--navy)">Corregir movimiento</div>
     <h3 style="font-family:var(--display);font-size:20px;margin:4px 0 16px">${m.fecha.split('-').reverse().join('/')} · ${m.hora}</h3>
@@ -3022,7 +3025,7 @@ function guardarEdit(mid){
   m.monto=n;
   if(m.tipo==='venta') m.medio=document.getElementById('eMedio').value;
   else if(m.tipo==='pago'){m.concepto=document.getElementById('eConcepto').value||'Pago'; m.medio=document.getElementById('ePagoMedio').value; const pv=document.getElementById('ePagoProv').value.trim(); if(pv)m.prov=pv; else delete m.prov; renderProveedores(); renderProvDatalists();}
-  else{m.cliente=document.getElementById('eCliente').value||m.cliente; m.ccTipo=document.getElementById('eCC').value;}
+  else{m.cliente=document.getElementById('eCliente').value||m.cliente; m.ccTipo=document.getElementById('eCC').value; if(m.ccTipo==='cobro')m.medio=document.getElementById('eCCMedio').value; else delete m.medio;}
   persist(); render(); closeModal(); toast('Movimiento corregido');
 }
 
