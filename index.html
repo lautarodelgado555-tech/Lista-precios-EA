@@ -3208,16 +3208,25 @@ function renderProveedores(){
 function openProveedor(name){
   const sal=provSaldos().find(p=>p.n===name);
   const hist=SEEDP.provMovs.filter(m=>m[1]===name).map(m=>({fecha:m[0],tipo:m[2],monto:m[3],hist:true}));
-  const live=state.provMovimientos.filter(m=>m.prov===name);
-  const cajaPagos=state.movimientos.filter(m=>m.tipo==='pago'&&m.prov===name).map(m=>({fecha:m.fecha,tipo:'pago',monto:m.monto,concepto:(m.concepto||'Pago')+(m.factura?' · Fac N° '+m.factura:'')+' · desde caja ('+(m.medio||'Efectivo')+')'}));
+  const live=state.provMovimientos.filter(m=>m.prov===name).map(m=>({fecha:m.fecha,tipo:m.tipo,monto:m.monto,concepto:m.concepto,_src:'prov',_id:m.id}));
+  const cajaPagos=state.movimientos.filter(m=>m.tipo==='pago'&&m.prov===name).map(m=>({fecha:m.fecha,tipo:'pago',monto:m.monto,concepto:(m.concepto||'Pago')+(m.factura?' · Fac N° '+m.factura:'')+' · desde caja ('+(m.medio||'Efectivo')+')',_src:'caja',_id:m.id}));
   const movs=[...hist,...live,...cajaPagos].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const ne=String(name).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   let h=`<div class="eyebrow" style="color:#0E6B6B">Cuenta proveedor</div>
     <h3 style="font-family:var(--display);font-size:21px;margin:4px 0 2px">${name}</h3>
     <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Le debo hoy: <b class="mono" style="color:var(--pagos);font-size:16px">${ARS(sal?sal.s:0)}</b></div>
     <div style="font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600;margin-bottom:8px">Movimientos</div>`;
-  if(movs.length) movs.forEach(m=>{const c=m.tipo==='compra';h+=`<div class="mv" style="animation:none"><span class="tg" style="background:${c?'#0E6B6B':'var(--caja)'}">${c?'Compra':'Pago'}</span><div class="desc"><div class="t">${m.concepto||(c?'Compra':'Pago')}</div><div class="s">${m.fecha.split('-').reverse().join('/')}${m.hist?' · del Excel':''}</div></div><span class="amt" style="color:${c?'#0E6B6B':'var(--caja)'}">${(c?'+ ':'− ')+ARS(m.monto)}</span></div>`;});
+  if(movs.length) movs.forEach(m=>{const c=m.tipo==='compra';const del=m._src?`<button onclick="delProvMovDetalle('${m._src}','${m._id}','${ne}')" title="Borrar movimiento" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 0 4px 10px">✕</button>`:'';h+=`<div class="mv" style="animation:none"><span class="tg" style="background:${c?'#0E6B6B':'var(--caja)'}">${c?'Compra':'Pago'}</span><div class="desc"><div class="t">${m.concepto||(c?'Compra':'Pago')}</div><div class="s">${m.fecha.split('-').reverse().join('/')}${m.hist?' · del Excel':''}</div></div><span class="amt" style="color:${c?'#0E6B6B':'var(--caja)'}">${(c?'+ ':'− ')+ARS(m.monto)}</span>${del}</div>`;});
   else h+='<div style="font-size:13px;color:var(--muted)">Sin movimientos cargados.</div>';
   document.getElementById('modalBody').innerHTML=h;document.getElementById('modal').classList.add('show');
+}
+function delProvMovDetalle(src,id,name){
+  if(!confirm('¿Borrar este movimiento? El saldo del proveedor se va a recalcular.')) return;
+  if(src==='caja') state.movimientos=state.movimientos.filter(m=>String(m.id)!==String(id));
+  else state.provMovimientos=state.provMovimientos.filter(m=>String(m.id)!==String(id));
+  if(src==='caja') persist(); else persistProv();
+  render(); renderProveedores(); renderProvDatalists(); tickCaja();
+  openProveedor(name);
 }
 document.getElementById('provBody').addEventListener('click',e=>{const tr=e.target.closest('tr[data-p]');if(tr)openProveedor(tr.dataset.p);});
 document.getElementById('prMonto').addEventListener('input',e=>{const d=e.target.value.replace(/\D/g,'');e.target.value=d?parseInt(d,10).toLocaleString('es-AR'):'';});
@@ -3304,7 +3313,7 @@ function __cajaShow(){
   if(pc) pc.style.setProperty('--ea-head-h', h + 'px');
   if(!__cajaShow._ready){ __cajaShow._ready = true; init(); }
 }
-Object.assign(window, {addCC,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,setPagoTipo,togglePedido,__cajaShow:__cajaShow});
+Object.assign(window, {addCC,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,delProvMovDetalle,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,setPagoTipo,togglePedido,__cajaShow:__cajaShow});
 window.addEventListener('resize', function(){
   var pc = document.getElementById('page-caja');
   if(pc && pc.classList.contains('active')) __cajaShow();
