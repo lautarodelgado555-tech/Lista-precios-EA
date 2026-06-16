@@ -2854,7 +2854,6 @@ function render(){
 
   // datalists
   document.getElementById('clientesDL').innerHTML=clientesVivos().map(c=>`<option value="${c.n}">`).join('');
-  document.getElementById('conceptos').innerHTML=SEED.pagosConcepto.map(p=>`<option value="${p.c}">`).join('');
 
   renderReports();
 }
