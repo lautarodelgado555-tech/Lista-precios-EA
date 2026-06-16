@@ -619,7 +619,11 @@ tr:hover td{background:var(--bg3)}
               <span class="op">−</span>
               <span><span class="chip-tag" style="background:var(--pagos)">Pagos</span> <b id="fPagos">$ 0</b></span>
             </div>
-            <div class="digital-note">📲 Ventas digitales: <b id="fDig">$ 0</b> · 📒 Fiado del día: <b id="fFio" style="color:var(--cc)">$ 0</b> · se informan pero no entran a la caja</div>
+            <div class="digital-note" style="flex-wrap:wrap;gap:4px 22px;align-items:baseline">
+              <span style="white-space:nowrap">📲 Ventas digitales: <b id="fDig">$ 0</b></span>
+              <span style="white-space:nowrap">📒 Fiado del día: <b id="fFio" style="color:var(--cc)">$ 0</b></span>
+              <span style="flex-basis:100%;font-size:11.5px;color:#9aa7b5;margin-top:1px">No entran a la caja — son informativos</span>
+            </div>
           </div>
           <div class="card entry">
             <div class="seg" id="seg">
@@ -730,7 +734,7 @@ tr:hover td{background:var(--bg3)}
             <div class="field" style="margin:0"><label>Proveedor</label><input list="provDL2" id="prProv" placeholder="Elegí o escribí uno nuevo…" autocomplete="off"></div>
             <div class="field" style="margin:0"><label>Monto</label><input id="prMonto" inputmode="numeric" placeholder="0" autocomplete="off"></div>
             <div class="field" style="margin:0;flex:1.4"><label>Factura / concepto</label><input id="prConcepto" placeholder="opcional" autocomplete="off"></div>
-            <button class="btn btn-primary" style="align-self:flex-end" onclick="addProvMov()">Registrar compra</button>
+            <button class="btn btn-primary" style="align-self:flex-end" onclick="addProvMov()">Registrar Factura</button>
           </div>
           <div style="font-size:12px;color:var(--muted);padding:2px 2px 0">Registrá acá las <b>compras</b> a proveedores (suben la deuda). Los <b>pagos</b> se cargan desde Inicio → Pago → "A un proveedor".</div>
         </div>
@@ -757,7 +761,11 @@ tr:hover td{background:var(--bg3)}
             <div class="breakline"><span>Cobros cta cte (efectivo)</span><span class="v" id="cCob" style="color:var(--cc)">+ $ 0</span></div>
             <div class="breakline"><span>Pagos del día</span><span class="v" id="cPagos" style="color:var(--pagos)">− $ 0</span></div>
             <div class="breakline" style="font-weight:700"><span>Caja del día</span><span class="v mono" id="cTotal" style="color:var(--caja)">$ 0</span></div>
-            <div class="digital-note">📲 Digital: <b id="cDig">$ 0</b> · 📒 Fiado: <b id="cFio" style="color:var(--cc)">$ 0</b> · informativos</div>
+            <div class="digital-note" style="flex-wrap:wrap;gap:4px 22px;align-items:baseline">
+              <span style="white-space:nowrap">📲 Digital: <b id="cDig">$ 0</b></span>
+              <span style="white-space:nowrap">📒 Fiado: <b id="cFio" style="color:var(--cc)">$ 0</b></span>
+              <span style="flex-basis:100%;font-size:11.5px;color:#9aa7b5;margin-top:1px">Informativos — no entran a la caja</span>
+            </div>
           </div>
           <div>
             <div class="actions">
