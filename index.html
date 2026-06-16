@@ -638,7 +638,13 @@ tr:hover td{background:var(--bg3)}
             <div id="mode-pago" style="display:none">
               <div class="field"><label>Concepto</label><input id="pConcepto" list="conceptos" placeholder="Proveedor, alquiler, sueldo…" autocomplete="off"></div>
               <datalist id="conceptos"></datalist>
-              <button class="btn btn-primary" style="width:100%" onclick="addPago()">Registrar pago</button>
+              <div class="field"><label>Proveedor <span style="color:var(--muted);font-weight:400">· opcional, baja su deuda</span></label><input id="pProv" list="provPagoDL" placeholder="Si es a un proveedor con cuenta…" autocomplete="off"></div>
+              <datalist id="provPagoDL"></datalist>
+              <div class="methods" style="grid-template-columns:1fr 1fr">
+                <button class="efvo" onclick="addPago('Efectivo')"><span class="ic">💵</span>Efectivo</button>
+                <button onclick="addPago('Transferencia')"><span class="ic">🏦</span>Transferencia</button>
+              </div>
+              <p class="hint">La transferencia se informa pero <b>no sale de la caja</b>.</p>
             </div>
             <div id="mode-cc" style="display:none">
               <div class="field"><label>Cliente</label><input id="ccCliente" list="clientesDL" placeholder="Nombre del cliente…" autocomplete="off"></div>
@@ -669,9 +675,13 @@ tr:hover td{background:var(--bg3)}
       <!-- PAGOS -->
       <section class="screen" id="screen-pagos">
         <div class="eyebrow" style="color:var(--pagos)">Pagos</div><div class="h2">Pagos del día</div>
-        <div class="tot-row"><div class="tot" style="border-top-color:var(--pagos)"><div class="l">Total pagado hoy</div><div class="v" id="tPtot" style="color:var(--pagos)">$ 0</div></div></div>
+        <div class="tot-row">
+          <div class="tot" style="border-top-color:var(--pagos)"><div class="l">Efectivo (sale de la caja)</div><div class="v" id="tPefvo" style="color:var(--pagos)">$ 0</div></div>
+          <div class="tot" style="border-top-color:var(--digital)"><div class="l">Transferencia (no sale de caja)</div><div class="v" id="tPtr" style="color:var(--digital)">$ 0</div></div>
+          <div class="tot" style="border-top-color:var(--ink)"><div class="l">Total pagado hoy</div><div class="v" id="tPtot">$ 0</div></div>
+        </div>
         <div class="card panel"><div class="panel-h"><h3>Detalle</h3></div>
-          <table><thead><tr><th>Hora</th><th>Concepto</th><th class="num">Importe</th></tr></thead><tbody id="pBody"></tbody></table>
+          <table><thead><tr><th>Hora</th><th>Concepto</th><th>Medio</th><th class="num">Importe</th></tr></thead><tbody id="pBody"></tbody></table>
         </div>
       </section>
 
@@ -2739,7 +2749,7 @@ const fmtLarga = d => new Date(d+'T12:00').toLocaleDateString('es-AR',{weekday:'
    digital = 0 (informativo, no entra). fiado resta, cobro suma. */
 function cajaEffect(m){
   if(m.tipo==='venta') return m.medio==='Efectivo' ? m.monto : 0;
-  if(m.tipo==='pago')  return -m.monto;
+  if(m.tipo==='pago')  return m.medio==='Transferencia' ? 0 : -m.monto;
   if(m.tipo==='cc')    return m.ccTipo==='fio' ? -m.monto : m.monto;
   return 0;
 }
@@ -2761,9 +2771,9 @@ function getAmt(){const el=document.getElementById('amt');const n=parseInt((el.v
 function tickCaja(){const c=document.getElementById('cajaHoy');c.classList.add('tick');setTimeout(()=>c.classList.remove('tick'),250);}
 
 function addVenta(medio){const {el,n}=getAmt();if(!n){el.focus();return;}state.movimientos.push({id:id++,tipo:'venta',medio,monto:n,fecha:viewDate,hora:now()});el.value='';persist();render();tickCaja();toast('Venta cargada · '+medio+' '+ARS(n));}
-function addPago(){const {el,n}=getAmt();const c=document.getElementById('pConcepto');if(!n){el.focus();return;}state.movimientos.push({id:id++,tipo:'pago',concepto:c.value||'Pago',monto:n,fecha:viewDate,hora:now()});el.value='';c.value='';persist();render();tickCaja();toast('Pago registrado · '+ARS(n));}
+function addPago(medio){const {el,n}=getAmt();const c=document.getElementById('pConcepto');const pv=document.getElementById('pProv');if(!n){el.focus();return;}const me=medio||'Efectivo';const prov=(pv&&pv.value.trim())||'';const mov={id:id++,tipo:'pago',medio:me,concepto:c.value||(prov?('Pago a '+prov):'Pago'),monto:n,fecha:viewDate,hora:now()};if(prov)mov.prov=prov;state.movimientos.push(mov);el.value='';c.value='';if(pv)pv.value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast(prov?('Pago a '+prov+' · baja su deuda · '+me+' '+ARS(n)):('Pago registrado · '+me+' '+ARS(n)));}
 function addCC(tp){const {el,n}=getAmt();const c=document.getElementById('ccCliente');if(!n||!c.value){el.focus();c.focus();return;}state.movimientos.push({id:id++,tipo:'cc',cliente:c.value,ccTipo:tp,monto:n,fecha:viewDate,hora:now()});el.value='';c.value='';persist();render();tickCaja();toast(tp==='fio'?'Fiado cargado a '+c.value:'Cobro registrado de '+c.value);}
-function rm(x){state.movimientos=state.movimientos.filter(m=>m.id!==x);persist();render();}
+function rm(x){state.movimientos=state.movimientos.filter(m=>m.id!==x);persist();render();renderProveedores();renderProvDatalists();}
 
 function render(){
   const todos = state.movimientos;
@@ -2772,11 +2782,12 @@ function render(){
 
   const efvoHoy = sum(hoy.filter(m=>m.tipo==='venta'&&m.medio==='Efectivo'),m=>m.monto);
   const digHoy  = sum(hoy.filter(m=>m.tipo==='venta'&&m.medio!=='Efectivo'),m=>m.monto);
-  const pagHoy  = sum(hoy.filter(m=>m.tipo==='pago'),m=>m.monto);
+  const pagHoy  = sum(hoy.filter(m=>m.tipo==='pago'&&m.medio!=='Transferencia'),m=>m.monto);
+  const pagTrHoy= sum(hoy.filter(m=>m.tipo==='pago'&&m.medio==='Transferencia'),m=>m.monto);
   const ccHoy   = sum(hoy.filter(m=>m.tipo==='cc'),m=> m.ccTipo==='fio'? m.monto : -m.monto);
   const cajaHoy = efvoHoy - pagHoy - ccHoy;
   const saldoTotal = state.saldoInicial + sum(todos, cajaEffect);
-  T = {efvoHoy, digHoy, pagHoy, ccHoy, cajaHoy, saldoTotal};
+  T = {efvoHoy, digHoy, pagHoy, pagTrHoy, ccHoy, cajaHoy, saldoTotal};
 
   document.getElementById('cajaHoy').textContent=ARS(cajaHoy);
   document.getElementById('fEfvo').textContent=ARS(efvoHoy);
@@ -2802,7 +2813,7 @@ function render(){
     [...hoy].reverse().forEach(m=>{
       let tg,col,t1,t2,amt,cls;
       if(m.tipo==='venta'){const ef=m.medio==='Efectivo';tg='Venta';col=ef?'var(--caja)':'var(--digital)';t1='Venta';t2=m.medio+(ef?'':' · no entra a la caja');amt=(ef?'+ ':'  ')+ARS(m.monto);cls=ef?'pos':'zero';}
-      else if(m.tipo==='pago'){tg='Pago';col='var(--pagos)';t1=m.concepto;t2='Pago / egreso';amt='− '+ARS(m.monto);cls='neg';}
+      else if(m.tipo==='pago'){const tr=m.medio==='Transferencia';tg='Pago';col=tr?'var(--digital)':'var(--pagos)';t1=m.concepto;t2=(m.medio||'Efectivo')+(tr?' · no sale de la caja':'')+(m.prov?' · baja deuda '+m.prov:'');amt=(tr?'  ':'− ')+ARS(m.monto);cls=tr?'zero':'neg';}
       else{const f=m.ccTipo==='fio';tg='Cta Cte';col='var(--cc)';t1=m.cliente;t2=f?'Se llevó fiado':'Pagó su cuenta';amt=(f?'− ':'+ ')+ARS(m.monto);cls=f?'neg':'pos';}
       const row=document.createElement('div');row.className='mv';
       row.innerHTML=`<span class="tg" style="background:${col}">${tg}</span><div class="desc"><div class="t">${t1}</div><div class="s">${t2} · ${m.hora}</div></div><span class="amt ${cls}">${amt}</span><button class="ed" title="Corregir" onclick="openEdit(${m.id})">✎</button><button class="rm" title="Borrar" onclick="rm(${m.id})">✕</button>`;
@@ -2815,8 +2826,10 @@ function render(){
   document.getElementById('tDig').textContent=ARS(digHoy);
   document.getElementById('tVtot').textContent=ARS(efvoHoy+digHoy);
   document.getElementById('vBody').innerHTML = hoy.filter(m=>m.tipo==='venta').map(m=>`<tr><td>${m.hora}</td><td><span class="badge" style="background:${m.medio==='Efectivo'?'var(--caja)':'var(--digital)'}">${m.medio}</span></td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(3);
-  document.getElementById('tPtot').textContent=ARS(pagHoy);
-  document.getElementById('pBody').innerHTML = hoy.filter(m=>m.tipo==='pago').map(m=>`<tr><td>${m.hora}</td><td>${m.concepto}</td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(3);
+  document.getElementById('tPefvo').textContent=ARS(pagHoy);
+  document.getElementById('tPtr').textContent=ARS(pagTrHoy);
+  document.getElementById('tPtot').textContent=ARS(pagHoy+pagTrHoy);
+  document.getElementById('pBody').innerHTML = hoy.filter(m=>m.tipo==='pago').map(m=>`<tr><td>${m.hora}</td><td>${m.concepto}</td><td><span class="badge" style="background:${m.medio==='Transferencia'?'var(--digital)':'var(--pagos)'}">${m.medio||'Efectivo'}</span></td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(4);
 
   // cuenta corriente
   const deudores=clientesVivos().filter(c=>c.s>0.5).sort((a,b)=>b.s-a.s);
@@ -2917,7 +2930,7 @@ function exportarExcel(){
   const mov=[['Fecha','Hora','Tipo','Detalle','Medio','Monto','Efecto en caja']];
   state.movimientos.forEach(m=>{let t,d,me;
     if(m.tipo==='venta'){t='Venta';d='';me=m.medio;}
-    else if(m.tipo==='pago'){t='Pago';d=m.concepto;me='';}
+    else if(m.tipo==='pago'){t='Pago';d=m.concepto;me=m.medio||'Efectivo';}
     else{t='Cuenta corriente';d=m.cliente;me=m.ccTipo==='fio'?'Fiado':'Cobro';}
     mov.push([m.fecha,m.hora,t,d,me,m.monto,cajaEffect(m)]);});
   const cc=[['Cliente','Saldo']];
@@ -2988,7 +3001,7 @@ function openEdit(mid){
   let campos='';
   if(m.tipo==='venta'){const op=v=>`<option${m.medio===v?' selected':''}>${v}</option>`;
     campos=`<label class="el">Medio</label><select id="eMedio" class="ei">${op('Efectivo')}${op('Tarjeta')}${op('Transferencia')}${op('QR')}</select>`;}
-  else if(m.tipo==='pago'){campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}">`;}
+  else if(m.tipo==='pago'){const med=m.medio||'Efectivo';const opp=v=>`<option${med===v?' selected':''}>${v}</option>`;campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}"><label class="el">Medio</label><select id="ePagoMedio" class="ei">${opp('Efectivo')}${opp('Transferencia')}</select><label class="el">Proveedor (opcional · baja su deuda)</label><input id="ePagoProv" class="ei" list="provPagoDL" value="${(m.prov||'').replace(/"/g,'&quot;')}">`;}
   else{campos=`<label class="el">Cliente</label><input id="eCliente" class="ei" value="${(m.cliente||'').replace(/"/g,'&quot;')}"><label class="el">Tipo</label><select id="eCC" class="ei"><option value="fio"${m.ccTipo==='fio'?' selected':''}>Se llevó fiado</option><option value="cobro"${m.ccTipo==='cobro'?' selected':''}>Pagó su cuenta</option></select>`;}
   document.getElementById('modalBody').innerHTML=`
     <div class="eyebrow" style="color:var(--navy)">Corregir movimiento</div>
@@ -3008,7 +3021,7 @@ function guardarEdit(mid){
   if(!n){toast('Poné un monto válido');return;}
   m.monto=n;
   if(m.tipo==='venta') m.medio=document.getElementById('eMedio').value;
-  else if(m.tipo==='pago') m.concepto=document.getElementById('eConcepto').value||'Pago';
+  else if(m.tipo==='pago'){m.concepto=document.getElementById('eConcepto').value||'Pago'; m.medio=document.getElementById('ePagoMedio').value; const pv=document.getElementById('ePagoProv').value.trim(); if(pv)m.prov=pv; else delete m.prov; renderProveedores(); renderProvDatalists();}
   else{m.cliente=document.getElementById('eCliente').value||m.cliente; m.ccTipo=document.getElementById('eCC').value;}
   persist(); render(); closeModal(); toast('Movimiento corregido');
 }
@@ -3110,7 +3123,7 @@ function exportarCustom(){
 const PROVLIST=()=>{const s=new Set(SEEDP.lista);SEEDP.proveedores.forEach(p=>s.add(p.n));state.provMovimientos.forEach(m=>s.add(m.prov));state.pedidos.forEach(p=>s.add(p.prov));return [...s].sort();};
 function persistPed(){DB.set('ea:pedidos',state.pedidos);}
 function persistProv(){DB.set('ea:provmov',state.provMovimientos);}
-function renderProvDatalists(){const o=PROVLIST().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');document.getElementById('provDL').innerHTML=o;document.getElementById('provDL2').innerHTML=o;}
+function renderProvDatalists(){const o=PROVLIST().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');document.getElementById('provDL').innerHTML=o;document.getElementById('provDL2').innerHTML=o;const pp=document.getElementById('provPagoDL');if(pp)pp.innerHTML=o;}
 
 // PEDIDOS
 function addPedido(){
@@ -3150,6 +3163,7 @@ function compartirPedidos(){
 function provSaldos(){
   const map=new Map(SEEDP.proveedores.map(p=>[p.n,{n:p.n,s:p.s}]));
   state.provMovimientos.forEach(m=>{if(!map.has(m.prov))map.set(m.prov,{n:m.prov,s:0});map.get(m.prov).s+=(m.tipo==='compra'?m.monto:-m.monto);});
+  state.movimientos.forEach(m=>{if(m.tipo==='pago'&&m.prov){if(!map.has(m.prov))map.set(m.prov,{n:m.prov,s:0});map.get(m.prov).s-=m.monto;}});
   return [...map.values()];
 }
 function addProvMov(){
@@ -3172,7 +3186,8 @@ function openProveedor(name){
   const sal=provSaldos().find(p=>p.n===name);
   const hist=SEEDP.provMovs.filter(m=>m[1]===name).map(m=>({fecha:m[0],tipo:m[2],monto:m[3],hist:true}));
   const live=state.provMovimientos.filter(m=>m.prov===name);
-  const movs=[...hist,...live].sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const cajaPagos=state.movimientos.filter(m=>m.tipo==='pago'&&m.prov===name).map(m=>({fecha:m.fecha,tipo:'pago',monto:m.monto,concepto:(m.concepto||'Pago')+' · desde caja ('+(m.medio||'Efectivo')+')'}));
+  const movs=[...hist,...live,...cajaPagos].sort((a,b)=>a.fecha.localeCompare(b.fecha));
   let h=`<div class="eyebrow" style="color:#0E6B6B">Cuenta proveedor</div>
     <h3 style="font-family:var(--display);font-size:21px;margin:4px 0 2px">${name}</h3>
     <div style="font-size:13px;color:var(--muted);margin-bottom:18px">Le debo hoy: <b class="mono" style="color:var(--pagos);font-size:16px">${ARS(sal?sal.s:0)}</b></div>
