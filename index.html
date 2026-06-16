@@ -728,11 +728,11 @@ tr:hover td{background:var(--bg3)}
           <div class="prov-form">
             <div class="field" style="margin:0"><label>Fecha</label><input type="date" id="prFecha"></div>
             <div class="field" style="margin:0"><label>Proveedor</label><input list="provDL2" id="prProv" placeholder="Elegí o escribí uno nuevo…" autocomplete="off"></div>
-            <div class="field" style="margin:0"><label>Movimiento</label><select id="prTipo" class="ei" style="border-width:1.5px"><option value="compra">Compra (le debo más)</option><option value="pago">Pago (le debo menos)</option></select></div>
             <div class="field" style="margin:0"><label>Monto</label><input id="prMonto" inputmode="numeric" placeholder="0" autocomplete="off"></div>
             <div class="field" style="margin:0;flex:1.4"><label>Factura / concepto</label><input id="prConcepto" placeholder="opcional" autocomplete="off"></div>
-            <button class="btn btn-primary" style="align-self:flex-end" onclick="addProvMov()">Registrar</button>
+            <button class="btn btn-primary" style="align-self:flex-end" onclick="addProvMov()">Registrar compra</button>
           </div>
+          <div style="font-size:12px;color:var(--muted);padding:2px 2px 0">Registrá acá las <b>compras</b> a proveedores (suben la deuda). Los <b>pagos</b> se cargan desde Inicio → Pago → "A un proveedor".</div>
         </div>
         <div class="tot-row">
           <div class="tot" style="border-top-color:var(--pagos)"><div class="l">Total que debo a proveedores</div><div class="v" id="provTotal" style="color:var(--pagos)">$ 0</div></div>
@@ -3190,7 +3190,7 @@ function provSaldos(){
   return [...map.values()];
 }
 function addProvMov(){
-  const prov=document.getElementById('prProv').value.trim(), tipo=document.getElementById('prTipo').value, con=document.getElementById('prConcepto').value.trim(), f=document.getElementById('prFecha').value||hoyISO();
+  const prov=document.getElementById('prProv').value.trim(), tipo='compra', con=document.getElementById('prConcepto').value.trim(), f=document.getElementById('prFecha').value||hoyISO();
   const n=parseInt((document.getElementById('prMonto').value||'').replace(/\D/g,''),10);
   if(!prov||!n){toast('Completá proveedor y monto');return;}
   state.provMovimientos.push({id:'pv'+Date.now(),fecha:f,prov,tipo,monto:n,concepto:con});
@@ -3276,7 +3276,7 @@ function ddCombo(input,getOpts){
   arr.onclick=()=>input.focus();
 }
 function enhanceUI(){
-  ['cfTipo','cfSub','cfGroup','prTipo'].forEach(id=>ddSelect(document.getElementById(id)));
+  ['cfTipo','cfSub','cfGroup'].forEach(id=>ddSelect(document.getElementById(id)));
   ddCombo(document.getElementById('pConcepto'),()=>{const s=new Set(SEED.pagosConcepto.map(p=>p.c));state.movimientos.filter(m=>m.tipo==='pago').forEach(m=>m.concepto&&s.add(m.concepto));return [...s].sort();});
   ddCombo(document.getElementById('ccCliente'),()=>clientesVivos().map(c=>c.n).sort());
   ddCombo(document.getElementById('pedProv'),()=>PROVLIST());
