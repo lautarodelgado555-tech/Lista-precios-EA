@@ -636,10 +636,12 @@ tr:hover td{background:var(--bg3)}
               <p class="hint">Monto + medio · <kbd>Enter</kbd> = Efectivo · sólo el efectivo entra a la caja</p>
             </div>
             <div id="mode-pago" style="display:none">
-              <div class="field"><label>Concepto</label><input id="pConcepto" list="conceptos" placeholder="Proveedor, alquiler, sueldo…" autocomplete="off"></div>
-              <datalist id="conceptos"></datalist>
-              <div class="field"><label>Proveedor <span style="color:var(--muted);font-weight:400">· opcional, baja su deuda</span></label><input id="pProv" list="provPagoDL" placeholder="Si es a un proveedor con cuenta…" autocomplete="off"></div>
-              <datalist id="provPagoDL"></datalist>
+              <div class="seg" style="margin-bottom:14px">
+                <button type="button" class="on" id="pagoTipoGasto" onclick="setPagoTipo('gasto')">Gasto general</button>
+                <button type="button" id="pagoTipoProv" onclick="setPagoTipo('prov')">A un proveedor</button>
+              </div>
+              <div class="field" id="pagoGastoBox"><label>Concepto</label><input id="pConcepto" placeholder="Alquiler, sueldo, servicio…" autocomplete="off"></div>
+              <div class="field" id="pagoProvBox" style="display:none"><label>Proveedor <span style="color:var(--muted);font-weight:400">· baja su deuda</span></label><input id="pProv" placeholder="Elegí el proveedor…" autocomplete="off"></div>
               <div class="methods" style="grid-template-columns:1fr 1fr">
                 <button class="efvo" onclick="addPago('Efectivo')"><span class="ic">💵</span>Efectivo</button>
                 <button onclick="addPago('Transferencia')"><span class="ic">🏦</span>Transferencia</button>
@@ -2774,7 +2776,9 @@ function getAmt(){const el=document.getElementById('amt');const n=parseInt((el.v
 function tickCaja(){const c=document.getElementById('cajaHoy');c.classList.add('tick');setTimeout(()=>c.classList.remove('tick'),250);}
 
 function addVenta(medio){const {el,n}=getAmt();if(!n){el.focus();return;}state.movimientos.push({id:id++,tipo:'venta',medio,monto:n,fecha:viewDate,hora:now()});el.value='';persist();render();tickCaja();toast('Venta cargada · '+medio+' '+ARS(n));}
-function addPago(medio){const {el,n}=getAmt();const c=document.getElementById('pConcepto');const pv=document.getElementById('pProv');if(!n){el.focus();return;}const me=medio||'Efectivo';const prov=(pv&&pv.value.trim())||'';const mov={id:id++,tipo:'pago',medio:me,concepto:c.value||(prov?('Pago a '+prov):'Pago'),monto:n,fecha:viewDate,hora:now()};if(prov)mov.prov=prov;state.movimientos.push(mov);el.value='';c.value='';if(pv)pv.value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast(prov?('Pago a '+prov+' · baja su deuda · '+me+' '+ARS(n)):('Pago registrado · '+me+' '+ARS(n)));}
+let pagoTipo='gasto';
+function setPagoTipo(t){pagoTipo=t;document.getElementById('pagoTipoGasto').classList.toggle('on',t==='gasto');document.getElementById('pagoTipoProv').classList.toggle('on',t==='prov');document.getElementById('pagoGastoBox').style.display=t==='gasto'?'':'none';document.getElementById('pagoProvBox').style.display=t==='prov'?'':'none';if(t==='prov')setTimeout(()=>document.getElementById('pProv').focus(),0);}
+function addPago(medio){const {el,n}=getAmt();if(!n){el.focus();return;}const me=medio||'Efectivo';let prov='',concepto='';if(pagoTipo==='prov'){prov=(document.getElementById('pProv').value||'').trim();if(!prov){document.getElementById('pProv').focus();toast('Elegí un proveedor');return;}concepto='Pago a '+prov;}else{concepto=(document.getElementById('pConcepto').value||'').trim()||'Pago';}const mov={id:id++,tipo:'pago',medio:me,concepto,monto:n,fecha:viewDate,hora:now()};if(prov)mov.prov=prov;state.movimientos.push(mov);el.value='';document.getElementById('pConcepto').value='';document.getElementById('pProv').value='';persist();render();renderProveedores();renderProvDatalists();tickCaja();toast(prov?('Pago a '+prov+' · baja su deuda · '+me+' '+ARS(n)):('Pago registrado · '+me+' '+ARS(n)));}
 function addCC(tp,medio){const {el,n}=getAmt();const c=document.getElementById('ccCliente');if(!n||!c.value){el.focus();c.focus();return;}const nom=c.value;const mov={id:id++,tipo:'cc',cliente:nom,ccTipo:tp,monto:n,fecha:viewDate,hora:now()};if(tp==='cobro')mov.medio=medio||'Efectivo';state.movimientos.push(mov);el.value='';c.value='';persist();render();tickCaja();toast(tp==='fio'?('Fiado cargado a '+nom):('Cobro '+(medio||'Efectivo')+' de '+nom));}
 function rm(x){state.movimientos=state.movimientos.filter(m=>m.id!==x);persist();render();renderProveedores();renderProvDatalists();}
 
@@ -3004,7 +3008,7 @@ function openEdit(mid){
   let campos='';
   if(m.tipo==='venta'){const op=v=>`<option${m.medio===v?' selected':''}>${v}</option>`;
     campos=`<label class="el">Medio</label><select id="eMedio" class="ei">${op('Efectivo')}${op('Tarjeta')}${op('Transferencia')}${op('QR')}</select>`;}
-  else if(m.tipo==='pago'){const med=m.medio||'Efectivo';const opp=v=>`<option${med===v?' selected':''}>${v}</option>`;campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}"><label class="el">Medio</label><select id="ePagoMedio" class="ei">${opp('Efectivo')}${opp('Transferencia')}</select><label class="el">Proveedor (opcional · baja su deuda)</label><input id="ePagoProv" class="ei" list="provPagoDL" value="${(m.prov||'').replace(/"/g,'&quot;')}">`;}
+  else if(m.tipo==='pago'){const med=m.medio||'Efectivo';const opp=v=>`<option${med===v?' selected':''}>${v}</option>`;const provOpts=`<option value=""${!m.prov?' selected':''}>— Ninguno (gasto general) —</option>`+PROVLIST().map(nn=>`<option${m.prov===nn?' selected':''}>${nn.replace(/</g,'&lt;')}</option>`).join('');campos=`<label class="el">Concepto</label><input id="eConcepto" class="ei" value="${(m.concepto||'').replace(/"/g,'&quot;')}"><label class="el">Medio</label><select id="ePagoMedio" class="ei">${opp('Efectivo')}${opp('Transferencia')}</select><label class="el">Proveedor (baja su deuda)</label><select id="ePagoProv" class="ei">${provOpts}</select>`;}
   else{campos=`<label class="el">Cliente</label><input id="eCliente" class="ei" value="${(m.cliente||'').replace(/"/g,'&quot;')}"><label class="el">Tipo</label><select id="eCC" class="ei"><option value="fio"${m.ccTipo==='fio'?' selected':''}>Se llevó fiado</option><option value="cobro"${m.ccTipo==='cobro'?' selected':''}>Pagó su cuenta</option></select><label class="el">Medio (si es cobro)</label><select id="eCCMedio" class="ei"><option${(m.medio||'Efectivo')==='Efectivo'?' selected':''}>Efectivo</option><option${m.medio==='Transferencia'?' selected':''}>Transferencia</option></select>`;}
   document.getElementById('modalBody').innerHTML=`
     <div class="eyebrow" style="color:var(--navy)">Corregir movimiento</div>
@@ -3126,7 +3130,7 @@ function exportarCustom(){
 const PROVLIST=()=>{const s=new Set(SEEDP.lista);SEEDP.proveedores.forEach(p=>s.add(p.n));state.provMovimientos.forEach(m=>s.add(m.prov));state.pedidos.forEach(p=>s.add(p.prov));return [...s].sort();};
 function persistPed(){DB.set('ea:pedidos',state.pedidos);}
 function persistProv(){DB.set('ea:provmov',state.provMovimientos);}
-function renderProvDatalists(){const o=PROVLIST().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');document.getElementById('provDL').innerHTML=o;document.getElementById('provDL2').innerHTML=o;const pp=document.getElementById('provPagoDL');if(pp)pp.innerHTML=o;}
+function renderProvDatalists(){const o=PROVLIST().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');document.getElementById('provDL').innerHTML=o;document.getElementById('provDL2').innerHTML=o;}
 
 // PEDIDOS
 function addPedido(){
@@ -3252,6 +3256,7 @@ function enhanceUI(){
   ddCombo(document.getElementById('ccCliente'),()=>clientesVivos().map(c=>c.n).sort());
   ddCombo(document.getElementById('pedProv'),()=>PROVLIST());
   ddCombo(document.getElementById('prProv'),()=>PROVLIST());
+  ddCombo(document.getElementById('pProv'),()=>PROVLIST());
 }
 
 async function init(){
@@ -3283,7 +3288,7 @@ function __cajaShow(){
   if(pc) pc.style.setProperty('--ea-head-h', h + 'px');
   if(!__cajaShow._ready){ __cajaShow._ready = true; init(); }
 }
-Object.assign(window, {addCC,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,togglePedido,__cajaShow:__cajaShow});
+Object.assign(window, {addCC,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,setPagoTipo,togglePedido,__cajaShow:__cajaShow});
 window.addEventListener('resize', function(){
   var pc = document.getElementById('page-caja');
   if(pc && pc.classList.contains('active')) __cajaShow();
