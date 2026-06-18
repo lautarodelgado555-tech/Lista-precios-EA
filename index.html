@@ -3328,6 +3328,7 @@ async function init(){
   await DB.set(K.saldo, state.saldoInicial);
   state.movimientos = await DB.get(K.movs, []);
   if(state.movimientos.length) id = Math.max(...state.movimientos.map(m=>m.id))+1;
+  state.clientesExcluidos = await DB.get('ea:clientesexcl', []);
   renderCierres(await DB.get('ea:cierres', []));
   const dp=document.getElementById('datePicker'); dp.max=hoyISO(); dp.value=viewDate;
   document.getElementById('nextDay').disabled=true;
@@ -3337,7 +3338,6 @@ async function init(){
   state.pedidos = await DB.get('ea:pedidos', null);
   if(state.pedidos===null) state.pedidos = SEEDP.pedidos.map((d,i)=>({id:'seed'+i,fecha:hoyISO(),prov:'Puente Montaje',detalle:d,hecho:false}));
   state.provMovimientos = await DB.get('ea:provmov', []);
-  state.clientesExcluidos = await DB.get('ea:clientesexcl', []);
   document.getElementById('pedFecha').value=hoyISO(); document.getElementById('prFecha').value=hoyISO();
   renderProvDatalists(); renderPedidos(); renderProveedores();
   enhanceUI();
