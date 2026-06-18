@@ -705,7 +705,7 @@ tr:hover td{background:var(--bg3)}
         <div class="eyebrow" style="color:var(--cc)">Cuenta corriente</div><div class="h2">¿Quién me debe?</div>
         <div class="card panel">
           <div class="panel-h"><h3>Clientes con saldo</h3><span class="count" id="ccTotal" style="font-size:13px;color:var(--muted)"></span></div>
-          <table><thead><tr><th>Cliente</th><th style="width:42%">Deuda</th><th class="num">Saldo</th></tr></thead><tbody id="ccBody"></tbody></table>
+          <table><thead><tr><th>Cliente</th><th style="width:42%">Deuda</th><th class="num">Saldo</th><th style="width:34px"></th></tr></thead><tbody id="ccBody"></tbody></table>
         </div>
       </section>
 
@@ -2768,7 +2768,7 @@ const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 const hoyISO = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const now = () => new Date().toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
 
-let state = { saldoInicial: SEED.saldoInicial, movimientos: [], pedidos: [], provMovimientos: [] };
+let state = { saldoInicial: SEED.saldoInicial, movimientos: [], pedidos: [], provMovimientos: [], clientesExcluidos: [] };
 let T = {};
 let id = 1;
 let viewDate = hoyISO();
@@ -2789,7 +2789,8 @@ function persist(){ DB.set(K.movs, state.movimientos); }
 
 /* clientes vivos = saldos reales del Excel +/- movimientos de cuenta corriente cargados */
 function clientesVivos(){
-  const map = new Map(SEED.clientes.map(c=>[c.n.toUpperCase(), {n:c.n, s:c.s}]));
+  const excl=new Set(state.clientesExcluidos||[]);
+  const map = new Map(SEED.clientes.filter(c=>!excl.has(c.n.toUpperCase())).map(c=>[c.n.toUpperCase(), {n:c.n, s:c.s}]));
   state.movimientos.filter(m=>m.tipo==='cc').forEach(m=>{
     const key=m.cliente.toUpperCase();
     if(!map.has(key)) map.set(key,{n:m.cliente,s:0});
@@ -2875,7 +2876,7 @@ function render(){
   const deudores=clientesVivos().filter(c=>c.s>0.5).sort((a,b)=>b.s-a.s);
   const max=Math.max(...deudores.map(c=>c.s),1);
   document.getElementById('ccTotal').textContent='Total a cobrar: '+ARS(deudores.reduce((s,c)=>s+c.s,0));
-  document.getElementById('ccBody').innerHTML=deudores.map(c=>`<tr class="clk" data-k="${c.n.toUpperCase()}"><td><b>${c.n}</b></td><td><div class="who-bar" style="width:${Math.max(8,c.s/max*100)}%"></div></td><td class="num">${ARS(c.s)}</td></tr>`).join('');
+  document.getElementById('ccBody').innerHTML=deudores.map(c=>{const ke=c.n.toUpperCase().replace(/\\/g,'\\\\').replace(/'/g,"\\'");const nm=c.n.replace(/\\/g,'\\\\').replace(/'/g,"\\'");return `<tr class="clk" data-k="${c.n.toUpperCase().replace(/"/g,'&quot;')}"><td><b>${c.n}</b></td><td><div class="who-bar" style="width:${Math.max(8,c.s/max*100)}%"></div></td><td class="num">${ARS(c.s)}</td><td style="text-align:right"><button onclick="event.stopPropagation();delCliente('${ke}','${nm}')" title="Eliminar cuenta" style="border:none;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:4px 2px">✕</button></td></tr>`;}).join('');
 
   // cierre
   document.getElementById('cierreNum').textContent=ARS(cajaHoy);
@@ -3034,6 +3035,16 @@ function openCliente(key){
   document.getElementById('modal').classList.add('show');
 }
 function closeModal(){document.getElementById('modal').classList.remove('show');}
+function delCliente(key,name){
+  if(!confirm('¿Eliminar la cuenta de '+name+'?\n\nSe borran sus movimientos de cuenta corriente y su saldo deja de figurar. No se puede deshacer.')) return;
+  state.movimientos=state.movimientos.filter(m=>!(m.tipo==='cc'&&m.cliente.toUpperCase()===key));
+  state.clientesExcluidos=state.clientesExcluidos||[];
+  if(!state.clientesExcluidos.includes(key))state.clientesExcluidos.push(key);
+  persist();
+  DB.set('ea:clientesexcl',state.clientesExcluidos);
+  render();
+  toast('Cuenta eliminada: '+name);
+}
 document.getElementById('ccBody').addEventListener('click',e=>{const tr=e.target.closest('tr[data-k]');if(tr)openCliente(tr.dataset.k);});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
@@ -3326,6 +3337,7 @@ async function init(){
   state.pedidos = await DB.get('ea:pedidos', null);
   if(state.pedidos===null) state.pedidos = SEEDP.pedidos.map((d,i)=>({id:'seed'+i,fecha:hoyISO(),prov:'Puente Montaje',detalle:d,hecho:false}));
   state.provMovimientos = await DB.get('ea:provmov', []);
+  state.clientesExcluidos = await DB.get('ea:clientesexcl', []);
   document.getElementById('pedFecha').value=hoyISO(); document.getElementById('prFecha').value=hoyISO();
   renderProvDatalists(); renderPedidos(); renderProveedores();
   enhanceUI();
@@ -3341,7 +3353,7 @@ function __cajaShow(){
   if(pc) pc.style.setProperty('--ea-head-h', h + 'px');
   if(!__cajaShow._ready){ __cajaShow._ready = true; init(); }
 }
-Object.assign(window, {addCC,addNotaCredProv,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,delProvMovDetalle,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,setPagoTipo,togglePedido,__cajaShow:__cajaShow});
+Object.assign(window, {addCC,addNotaCredProv,addPago,addPedido,addProvMov,addVenta,cerrarCaja,cfRango,closeModal,compartirPedidos,delCliente,delProvMovDetalle,enviarWhatsApp,exportarCustom,exportarExcel,goToday,guardarEdit,openEdit,rm,rmPedido,setPagoTipo,togglePedido,__cajaShow:__cajaShow});
 window.addEventListener('resize', function(){
   var pc = document.getElementById('page-caja');
   if(pc && pc.classList.contains('active')) __cajaShow();
