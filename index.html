@@ -621,7 +621,7 @@ tr:hover td{background:var(--bg3)}
             </div>
             <div class="digital-note" style="flex-wrap:wrap;gap:4px 22px;align-items:baseline">
               <span style="white-space:nowrap">📲 Ventas digitales: <b id="fDig">$ 0</b></span>
-              <span style="white-space:nowrap">📒 Fiado del día: <b id="fFio" style="color:var(--cc)">$ 0</b></span>
+              <span style="white-space:nowrap">📒 Cuenta Corriente del día: <b id="fFio" style="color:var(--cc)">$ 0</b></span>
               <span style="flex-basis:100%;font-size:11.5px;color:#9aa7b5;margin-top:1px">No entran a la caja — son informativos</span>
             </div>
           </div>
@@ -2868,11 +2868,11 @@ function render(){
   document.getElementById('tDig').textContent=ARS(digHoy);
   document.getElementById('tFio').textContent=ARS(fioHoy);
   document.getElementById('tVtot').textContent=ARS(efvoHoy+digHoy+fioHoy);
-  document.getElementById('vBody').innerHTML = hoy.filter(m=>m.tipo==='venta'||(m.tipo==='cc'&&m.ccTipo==='fio')).sort((a,b)=>(a.hora||'').localeCompare(b.hora||'')).map(m=>{const fio=m.tipo==='cc';const cell=fio?('<span class="badge" style="background:var(--cc)">Crédito</span> '+(m.cliente||'')):('<span class="badge" style="background:'+(m.medio==='Efectivo'?'var(--caja)':'var(--digital)')+'">'+m.medio+'</span>');return `<tr><td>${m.hora||'—'}</td><td>${cell}</td><td class="num">${ARS(m.monto)}</td></tr>`;}).join('') || rowEmpty(3);
+  document.getElementById('vBody').innerHTML = hoy.filter(m=>m.tipo==='venta'||(m.tipo==='cc'&&m.ccTipo==='fio')).reverse().map(m=>{const fio=m.tipo==='cc';const cell=fio?('<span class="badge" style="background:var(--cc)">Crédito</span> '+(m.cliente||'')):('<span class="badge" style="background:'+(m.medio==='Efectivo'?'var(--caja)':'var(--digital)')+'">'+m.medio+'</span>');return `<tr><td>${m.hora||'—'}</td><td>${cell}</td><td class="num">${ARS(m.monto)}</td></tr>`;}).join('') || rowEmpty(3);
   document.getElementById('tPefvo').textContent=ARS(pagHoy);
   document.getElementById('tPtr').textContent=ARS(pagTrHoy);
   document.getElementById('tPtot').textContent=ARS(pagHoy+pagTrHoy);
-  document.getElementById('pBody').innerHTML = hoy.filter(m=>m.tipo==='pago').map(m=>`<tr><td>${m.hora}</td><td>${m.concepto}${m.factura?' · Fac N° '+m.factura:''}</td><td><span class="badge" style="background:${m.medio==='Transferencia'?'var(--digital)':'var(--pagos)'}">${m.medio||'Efectivo'}</span></td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(4);
+  document.getElementById('pBody').innerHTML = hoy.filter(m=>m.tipo==='pago').reverse().map(m=>`<tr><td>${m.hora}</td><td>${m.concepto}${m.factura?' · Fac N° '+m.factura:''}</td><td><span class="badge" style="background:${m.medio==='Transferencia'?'var(--digital)':'var(--pagos)'}">${m.medio||'Efectivo'}</span></td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(4);
 
   // cuenta corriente
   const deudores=clientesVivos().filter(c=>c.s>0.5).sort((a,b)=>b.s-a.s);
