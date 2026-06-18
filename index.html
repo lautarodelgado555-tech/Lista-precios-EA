@@ -680,6 +680,7 @@ tr:hover td{background:var(--bg3)}
         <div class="tot-row">
           <div class="tot" style="border-top-color:var(--caja)"><div class="l">Efectivo (entra a la caja)</div><div class="v" id="tEfvo" style="color:var(--caja)">$ 0</div></div>
           <div class="tot" style="border-top-color:var(--digital)"><div class="l">Digital (no entra a la caja)</div><div class="v" id="tDig" style="color:var(--digital)">$ 0</div></div>
+          <div class="tot" style="border-top-color:var(--cc)"><div class="l">Fiado / a crédito (no entra a la caja)</div><div class="v" id="tFio" style="color:var(--cc)">$ 0</div></div>
           <div class="tot" style="border-top-color:var(--ventas)"><div class="l">Total vendido hoy</div><div class="v" id="tVtot" style="color:var(--ventas)">$ 0</div></div>
         </div>
         <div class="card panel"><div class="panel-h"><h3>Detalle</h3></div>
@@ -790,8 +791,8 @@ tr:hover td{background:var(--bg3)}
         </div>
         <div class="rep-grid">
           <div class="card rep wide">
-            <h3>Ventas por mes</h3><div class="sub">Cuánto vendés cada mes, separando efectivo de digital.</div>
-            <div class="legend"><span><i style="background:var(--caja)"></i>Efectivo</span><span><i style="background:var(--digital)"></i>Digital</span></div>
+            <h3>Ventas por mes</h3><div class="sub">Cuánto vendés cada mes: efectivo, digital y a crédito (fiado).</div>
+            <div class="legend"><span><i style="background:var(--caja)"></i>Efectivo</span><span><i style="background:var(--digital)"></i>Digital</span><span><i style="background:var(--cc)"></i>Crédito (fiado)</span></div>
             <div class="bars" id="repVentas"></div>
           </div>
           <div class="card rep wide">
@@ -2865,8 +2866,9 @@ function render(){
   // ventas / pagos
   document.getElementById('tEfvo').textContent=ARS(efvoHoy);
   document.getElementById('tDig').textContent=ARS(digHoy);
-  document.getElementById('tVtot').textContent=ARS(efvoHoy+digHoy);
-  document.getElementById('vBody').innerHTML = hoy.filter(m=>m.tipo==='venta').map(m=>`<tr><td>${m.hora}</td><td><span class="badge" style="background:${m.medio==='Efectivo'?'var(--caja)':'var(--digital)'}">${m.medio}</span></td><td class="num">${ARS(m.monto)}</td></tr>`).join('') || rowEmpty(3);
+  document.getElementById('tFio').textContent=ARS(fioHoy);
+  document.getElementById('tVtot').textContent=ARS(efvoHoy+digHoy+fioHoy);
+  document.getElementById('vBody').innerHTML = hoy.filter(m=>m.tipo==='venta'||(m.tipo==='cc'&&m.ccTipo==='fio')).sort((a,b)=>(a.hora||'').localeCompare(b.hora||'')).map(m=>{const fio=m.tipo==='cc';const cell=fio?('<span class="badge" style="background:var(--cc)">Crédito</span> '+(m.cliente||'')):('<span class="badge" style="background:'+(m.medio==='Efectivo'?'var(--caja)':'var(--digital)')+'">'+m.medio+'</span>');return `<tr><td>${m.hora||'—'}</td><td>${cell}</td><td class="num">${ARS(m.monto)}</td></tr>`;}).join('') || rowEmpty(3);
   document.getElementById('tPefvo').textContent=ARS(pagHoy);
   document.getElementById('tPtr').textContent=ARS(pagTrHoy);
   document.getElementById('tPtot').textContent=ARS(pagHoy+pagTrHoy);
@@ -2896,7 +2898,7 @@ const rowEmpty=n=>`<tr><td colspan="${n}" style="color:var(--muted);text-align:c
 
 function renderReports(){
   // totales históricos: vienen del Excel y siguen creciendo con lo cargado en la app
-  const ventasLive = state.movimientos.filter(m=>m.tipo==='venta').reduce((s,m)=>s+m.monto,0);
+  const ventasLive = state.movimientos.filter(m=>m.tipo==='venta'||(m.tipo==='cc'&&m.ccTipo==='fio')).reduce((s,m)=>s+m.monto,0);
   const pagosLive  = state.movimientos.filter(m=>m.tipo==='pago').reduce((s,m)=>s+m.monto,0);
   const cajaSaldo  = state.saldoInicial + state.movimientos.reduce((s,m)=>s+cajaEffect(m),0);
   document.getElementById('histCaja').textContent  = ARS(cajaSaldo);
@@ -2906,22 +2908,24 @@ function renderReports(){
   // mensual = historico + movimientos vivos
   const M = {}; SEED.histMensual.forEach(h=>M[h.mes]={...h});
   state.movimientos.forEach(m=>{
-    const k=m.fecha.slice(0,7); if(!M[k])M[k]={mes:k,efectivo:0,digital:0,pagos:0};
+    const k=m.fecha.slice(0,7); if(!M[k])M[k]={mes:k,efectivo:0,digital:0,pagos:0,fiado:0};
     if(m.tipo==='venta'){ m.medio==='Efectivo'?M[k].efectivo+=m.monto:M[k].digital+=m.monto; }
     else if(m.tipo==='pago') M[k].pagos+=m.monto;
+    else if(m.tipo==='cc'&&m.ccTipo==='fio') M[k].fiado=(M[k].fiado||0)+m.monto;
   });
   const meses=Object.values(M).sort((a,b)=>a.mes.localeCompare(b.mes));
 
-  // R1 ventas por mes (efvo+dig)
-  const maxV=Math.max(...meses.map(m=>Math.max(m.efectivo,m.digital)),1);
+  // R1 ventas por mes (efvo+dig+crédito)
+  const maxV=Math.max(...meses.map(m=>Math.max(m.efectivo,m.digital,m.fiado||0)),1);
   document.getElementById('repVentas').innerHTML=meses.map(m=>`<div class="bcol"><div class="bpair">
      <div class="bar" style="background:var(--caja);height:${m.efectivo/maxV*100}%" title="Efectivo ${ARS(m.efectivo)}"></div>
      <div class="bar" style="background:var(--digital);height:${m.digital/maxV*100}%" title="Digital ${ARS(m.digital)}"></div>
-   </div><div class="m">${MES[m.mes.slice(5)]}</div><div class="vlabels"><span style="color:var(--caja)">${ARS(m.efectivo)}</span><span style="color:var(--digital)">${ARS(m.digital)}</span></div></div>`).join('');
+     <div class="bar" style="background:var(--cc);height:${(m.fiado||0)/maxV*100}%" title="Crédito ${ARS(m.fiado||0)}"></div>
+   </div><div class="m">${MES[m.mes.slice(5)]}</div><div class="vlabels"><span style="color:var(--caja)">${ARS(m.efectivo)}</span><span style="color:var(--digital)">${ARS(m.digital)}</span><span style="color:var(--cc)">${ARS(m.fiado||0)}</span></div></div>`).join('');
 
   // R2 ingresos vs egresos
-  const maxIE=Math.max(...meses.map(m=>Math.max(m.efectivo+m.digital,m.pagos)),1);
-  document.getElementById('repIE').innerHTML=meses.map(m=>{const v=m.efectivo+m.digital;return `<div class="bcol"><div class="bpair">
+  const maxIE=Math.max(...meses.map(m=>Math.max(m.efectivo+m.digital+(m.fiado||0),m.pagos)),1);
+  document.getElementById('repIE').innerHTML=meses.map(m=>{const v=m.efectivo+m.digital+(m.fiado||0);return `<div class="bcol"><div class="bpair">
      <div class="bar" style="background:var(--ventas);height:${v/maxIE*100}%" title="Ventas ${ARS(v)}"></div>
      <div class="bar" style="background:var(--pagos);height:${m.pagos/maxIE*100}%" title="Pagos ${ARS(m.pagos)}"></div>
    </div><div class="m">${MES[m.mes.slice(5)]}</div><div class="vlabels"><span style="color:var(--ventas)">${ARS(v)}</span><span style="color:var(--pagos)">${ARS(m.pagos)}</span></div></div>`;}).join('');
@@ -2943,7 +2947,7 @@ function renderReports(){
 
   // R5 ventas por dia de semana (seed + vivos)
   const dow=[...SEED.ventasDOW];
-  state.movimientos.filter(m=>m.tipo==='venta').forEach(m=>{const d=(new Date(m.fecha+'T12:00').getDay()+6)%7;dow[d]+=m.monto;});
+  state.movimientos.filter(m=>m.tipo==='venta'||(m.tipo==='cc'&&m.ccTipo==='fio')).forEach(m=>{const d=(new Date(m.fecha+'T12:00').getDay()+6)%7;dow[d]+=m.monto;});
   const maxD=Math.max(...dow,1);
   document.getElementById('repDOW').innerHTML=dow.map((v,i)=>`<div class="bcol"><div class="bpair"><div class="bar" style="width:60%;background:linear-gradient(var(--ventas),#2C6BB0);height:${v/maxD*100}%" title="${ARS(v)}"></div></div><div class="m">${DOW[i]}</div><div class="vlabels"><span style="color:var(--ventas)">${ARS(v)}</span></div></div>`).join('');
 
