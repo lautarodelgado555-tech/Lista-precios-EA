@@ -546,7 +546,6 @@ tr:hover td{background:var(--bg3)}
         <th style="width:6%;text-align:center">Cant.</th>
         <th style="width:11%;text-align:right">Total ítem</th>
         <th style="width:11%;text-align:right">Cobrado</th>
-        <th style="width:11%;text-align:right">Pendiente</th>
         <th style="width:6%"></th>
       </tr></thead>
       <tbody id="tb-carpeta"></tbody></table>
@@ -2092,7 +2091,7 @@ function renderCarpetaItems() {
   const tc = parseFloat(document.getElementById('carpeta-tc').value) || cfg.tc;
 
   if (!items.length) {
-    tb.innerHTML = '<tr><td colspan="9" class="empty">Sin ítems. Agregá productos o ítems manuales.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="8" class="empty">Sin ítems. Agregá productos o ítems manuales.</td></tr>';
     calcCarpetaTotales(); return;
   }
 
@@ -2155,7 +2154,6 @@ function renderCarpetaItems() {
           ${disabled}
           style="width:100px;height:26px;padding:0 6px;border:1px solid;border-radius:4px;background:var(--bg3);${cobradoStyle};font-size:12px;text-align:right;font-family:inherit">
       </td>
-      <td style="padding:6px 8px;text-align:right;font-size:12px;font-weight:600;color:${pendiente>0?'var(--accent)':'#22c55e'}">${pendiente > 0 ? fmt(pendiente) : '✓'}</td>
       <td style="padding:6px 4px;text-align:center">
         ${carpetaActual.estado !== 'cerrada' ? `<button onclick="delCarpetaRow(${i})" style="background:none;border:none;cursor:pointer;color:#666;font-size:14px">✕</button>` : ''}
       </td>
@@ -2234,11 +2232,6 @@ function setCarpetaCobrado(i, val) {
     const pendiente = totalItem - cobrado;
     const inp = rows[i].querySelector('input[type="number"][onclick="this.select()"]') ||
                 Array.from(rows[i].querySelectorAll('input')).find(el => el.placeholder === '0');
-    if (cells[7]) {
-      const fecha = carpetaActual.items[i].fechaCobro;
-      cells[7].textContent = pendiente > 0 ? fmt(Math.max(0, pendiente)) : ('✓ ' + (fecha || ''));
-      cells[7].style.color = pendiente > 0 ? 'var(--accent)' : '#22c55e';
-    }
   }
   guardaCarpeta();
   calcCarpetaTotales();
@@ -2261,11 +2254,6 @@ function setCarpetaManualPrecio(i, val) {
     const qty = parseFloat(carpetaActual.items[i].qty) || 1;
     const precio = parseFloat(val) || 0;
     if (cells[5]) cells[5].textContent = fmt(precio * qty);
-    const pendiente = precio * qty - (parseFloat(carpetaActual.items[i].cobrado)||0);
-    if (cells[7]) {
-      cells[7].textContent = pendiente > 0 ? fmt(pendiente) : '✓';
-      cells[7].style.color = pendiente > 0 ? 'var(--accent)' : '#22c55e';
-    }
   }
   guardaCarpeta();
   calcCarpetaTotales();
