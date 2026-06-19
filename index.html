@@ -622,7 +622,8 @@ tr:hover td{background:var(--bg3)}
             <div class="digital-note" style="flex-wrap:wrap;gap:4px 22px;align-items:baseline">
               <span style="white-space:nowrap">📲 Ventas digitales: <b id="fDig">$ 0</b></span>
               <span style="white-space:nowrap">📒 Cuenta Corriente del día: <b id="fFio" style="color:var(--cc)">$ 0</b></span>
-              <span style="flex-basis:100%;font-size:11.5px;color:#9aa7b5;margin-top:1px">No entran a la caja — son informativos</span>
+              <span style="white-space:nowrap">🏦 Pagos por transferencia: <b id="fPagTr" style="color:var(--digital)">$ 0</b></span>
+              <span style="flex-basis:100%;font-size:11.5px;color:#9aa7b5;margin-top:1px">No entran ni salen de la caja — son informativos</span>
             </div>
           </div>
           <div class="card entry">
@@ -2835,6 +2836,7 @@ function render(){
   document.getElementById('fPagos').textContent=ARS(pagHoy);
   document.getElementById('fDig').textContent=ARS(digHoy);
   document.getElementById('fFio').textContent=ARS(fioHoy);
+  document.getElementById('fPagTr').textContent=ARS(pagTrHoy);
   document.getElementById('saldoTop').textContent=ARS(saldoTotal);
   document.getElementById('saldoSide').textContent=ARS(saldoTotal);
 
