@@ -536,6 +536,11 @@ tr:hover td{background:var(--bg3)}
       <label>Dólar BNA</label>
       <input type="number" id="carpeta-tc" value="1415" min="1" oninput="renderCarpetaItems()">
     </div>
+    <!-- Notas internas -->
+    <div style="margin-bottom:12px">
+      <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;display:block;margin-bottom:5px">📝 Notas internas &nbsp;<span style="text-transform:none;letter-spacing:0;opacity:0.7">(no aparecen en la impresión)</span></label>
+      <textarea id="carpeta-notas" placeholder="Anotá acá lo que necesites recordar de esta carpeta..." oninput="setCarpetaNotas(this.value)" style="width:100%;min-height:58px;padding:9px 11px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg2);color:var(--text);font-size:13px;font-family:inherit;line-height:1.5;resize:vertical"></textarea>
+    </div>
     <!-- Tabla items -->
     <div class="pres-wrap">
       <table class="pt"><thead><tr>
@@ -2059,6 +2064,8 @@ async function abrirCarpeta(id) {
   }
   document.getElementById('carpeta-recargo').value = cfg.recargo;
   document.getElementById('carpeta-tc').value = cfg.tc;
+  const notasEl = document.getElementById('carpeta-notas');
+  if (notasEl) notasEl.value = carpetaActual.notas || '';
 
   const badge = document.getElementById('carpeta-estado-badge');
   const btnCerrar = document.getElementById('btn-cerrar-carpeta');
@@ -2288,6 +2295,12 @@ function acSelCarpeta(i, pid) {
 function acCloseCarpeta(i) { if (acDropEl) acDropEl.style.display = 'none'; }
 
 // ── Guardar carpeta ──────────────────────────────────────────────────
+function setCarpetaNotas(v) {
+  if (!carpetaActual) return;
+  carpetaActual.notas = v;
+  guardaCarpeta();
+}
+
 let guardaTimer = null;
 function guardaCarpeta() {
   if (!carpetaActual) return;
@@ -2298,6 +2311,7 @@ function guardaCarpeta() {
         cliente: carpetaActual.cliente,
         items: carpetaActual.items,
         estado: carpetaActual.estado,
+        notas: carpetaActual.notas || '',
         updated_at: new Date().toISOString()
       }).eq('id', carpetaActual.id);
     } catch(e) { console.error('Error guardando carpeta:', e); }
