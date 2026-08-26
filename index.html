@@ -86,6 +86,7 @@ tr:hover td{background:var(--bg3)}
 .btn.warn:hover{background:rgba(245,158,11,0.1)}
 /* Autocomplete */
 .ac-wrap{position:relative}
+.desc-txt{display:none}
 .ac-input{width:100%;height:28px;padding:0 8px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text);font-size:12px}
 .ac-input::placeholder{color:var(--text3)}
 .ac-drop{position:fixed;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);z-index:9999;max-height:260px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5)}
@@ -149,6 +150,114 @@ tr:hover td{background:var(--bg3)}
   .admin-grid{grid-template-columns:1fr}
   .carpeta-card{padding:10px}
   .tbl-scroll{overflow-x:auto}
+}
+
+/* ═══════ CARPETAS EN CELULAR: cada ítem como tarjeta ═══════ */
+@media (max-width: 640px) {
+  /* El contenedor deja de ser "tabla": las tarjetas traen su propio marco */
+  #carpeta-detalle .pres-wrap{background:transparent;border:none;border-radius:0;margin-bottom:10px}
+  #carpeta-detalle .pt,
+  #carpeta-detalle .pt tbody{display:block;width:100%}
+  #carpeta-detalle .pt thead{display:none}
+
+  #carpeta-detalle .pt tr{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    grid-template-areas:
+      "desc  desc    desc"
+      "marca recargo punit"
+      "cant  total   total"
+      "cobrado cobrado cobrado";
+    gap:9px 8px;
+    align-items:start;
+    position:relative;
+    background:var(--bg2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px !important;
+    margin-bottom:9px;
+  }
+  #carpeta-detalle .pt td{
+    display:block;
+    padding:0 !important;
+    border:none !important;
+    text-align:left !important;
+    min-width:0;
+  }
+  /* Etiqueta arriba de cada dato */
+  #carpeta-detalle .pt td[data-l]::before{
+    content:attr(data-l);
+    display:block;
+    font-size:9.5px;
+    line-height:1.2;
+    letter-spacing:0.6px;
+    text-transform:uppercase;
+    color:var(--text3);
+    margin-bottom:4px;
+    white-space:nowrap;
+  }
+  #carpeta-detalle .pt td:empty::before{content:none}
+
+  #carpeta-detalle .pt td.c-desc   {grid-area:desc;padding-right:28px !important}
+  #carpeta-detalle .pt td.c-marca  {grid-area:marca}
+  #carpeta-detalle .pt td.c-recargo{grid-area:recargo}
+  #carpeta-detalle .pt td.c-punit  {grid-area:punit;text-align:right !important}
+  #carpeta-detalle .pt td.c-cant   {grid-area:cant}
+  #carpeta-detalle .pt td.c-total  {grid-area:total;text-align:right !important}
+  #carpeta-detalle .pt td.c-cobrado{grid-area:cobrado}
+
+  /* Descripción: completa, en varias líneas. Se toca para cambiar el producto. */
+  #carpeta-detalle .pt td.c-desc .desc-txt{
+    display:block;font-size:14px;font-weight:600;line-height:1.35;
+    color:var(--text);padding:1px 0 2px;cursor:pointer;
+  }
+  #carpeta-detalle .pt td.c-desc .desc-txt + .ac-wrap{display:none}
+  #carpeta-detalle .pt td.c-desc input[type=text],
+  #carpeta-detalle .pt td.c-desc .ac-input{
+    width:100% !important;height:38px !important;font-size:14px !important;padding:0 9px !important;
+  }
+  /* Botón eliminar, arriba a la derecha de la tarjeta */
+  #carpeta-detalle .pt td.c-del{position:absolute;top:6px;right:4px;width:28px;text-align:center !important}
+  #carpeta-detalle .pt td.c-del button{font-size:17px !important;color:#8a8f9c !important;padding:4px}
+
+  /* Números grandes y campos cómodos para el dedo */
+  #carpeta-detalle .pt td.c-punit>span,
+  #carpeta-detalle .pt td.c-total{font-size:14px !important;font-weight:700 !important}
+  #carpeta-detalle .pt input[type=number]{
+    width:100% !important;height:36px !important;font-size:14px !important;padding:0 8px !important;
+  }
+  #carpeta-detalle .pt td.c-recargo>div{justify-content:flex-start !important;gap:4px !important}
+  #carpeta-detalle .pt td.c-recargo input[type=number]{width:58px !important;text-align:center !important}
+  #carpeta-detalle .pt td.c-cant input[type=number]{width:72px !important;text-align:center !important}
+  #carpeta-detalle .pt td.c-punit input[type=number],
+  #carpeta-detalle .pt td.c-cobrado input[type=number]{text-align:right !important}
+
+  /* Fila "sin ítems" */
+  #carpeta-detalle .pt tr.empty-row{display:block;padding:14px !important}
+  #carpeta-detalle .pt tr.empty-row td{text-align:center !important}
+
+  /* Encabezado de la carpeta: nombre del cliente en su propia línea */
+  #carpeta-cliente-input{width:100% !important;font-size:17px !important;height:34px}
+  #carpeta-detalle>div:first-child>div{flex:1 1 100% !important}
+  #carpeta-detalle .btn{flex:1 1 auto}
+
+  /* Recargo global y Dólar BNA entran en una sola línea */
+  #carpeta-detalle .cfg{gap:6px !important;padding:10px !important}
+  #carpeta-detalle .cfg label{font-size:9.5px !important;letter-spacing:0.3px}
+  #carpeta-detalle .cfg input[type=number]{width:62px !important;padding:0 6px !important}
+
+  /* Totales en dos columnas, cobrado y saldo destacados abajo */
+  #page-carpetas .totals{
+    display:grid;grid-template-columns:1fr 1fr;gap:12px 10px;
+    justify-content:stretch;padding:14px 12px;
+  }
+  #page-carpetas .totals>div:nth-last-child(2){
+    grid-column:1 / -1;border-top:1px solid var(--border);padding-top:11px;
+  }
+  #page-carpetas .totals>div:last-child{grid-column:1 / -1}
+  #page-carpetas .totals .tv{font-size:15px}
+  #page-carpetas .totals .tv.big{font-size:22px}
+  #page-carpetas #carp-dsc{width:70px !important;height:32px !important}
 }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -2111,7 +2220,7 @@ function renderCarpetaItems() {
   const tc = parseFloat(document.getElementById('carpeta-tc').value) || cfg.tc;
 
   if (!items.length) {
-    tb.innerHTML = '<tr><td colspan="8" class="empty">Sin ítems. Agregá productos o ítems manuales.</td></tr>';
+    tb.innerHTML = '<tr class="empty-row"><td colspan="8" class="empty">Sin ítems. Agregá productos o ítems manuales.</td></tr>';
     calcCarpetaTotales(); return;
   }
 
@@ -2126,7 +2235,8 @@ function renderCarpetaItems() {
     } else {
       const p = products.find(x => x.id === item.pid);
       fin = p ? calcFinal(p, recargo) : 0;
-      descHTML = `<div class="ac-wrap" id="cacwrap-${i}">
+      descHTML = `${p ? `<div class="desc-txt" onclick="editCarpetaDesc(this)">${p.descripcion}</div>` : ''}
+        <div class="ac-wrap" id="cacwrap-${i}">
           <input class="ac-input" type="text" value="${p ? p.descripcion : ''}" placeholder="Buscar producto..."
             oninput="acSearchCarpeta(${i},this.value,this)"
             onfocus="acSearchCarpeta(${i},this.value,this)"
@@ -2160,21 +2270,21 @@ function renderCarpetaItems() {
       : 'border-color:#555;color:var(--text)';
 
     return `<tr style="${rowBg}">
-      <td style="padding:6px 8px">${descHTML}</td>
-      <td style="padding:6px 8px">${marcaHTML}</td>
-      <td style="padding:6px 4px;text-align:center">${recargoCell}</td>
-      <td style="padding:6px 8px;text-align:right">${precioCell}</td>
-      <td style="padding:6px 4px;text-align:center">
+      <td class="c-desc" style="padding:6px 8px">${descHTML}</td>
+      <td class="c-marca" data-l="Marca" style="padding:6px 8px">${marcaHTML}</td>
+      <td class="c-recargo" data-l="Recargo" style="padding:6px 4px;text-align:center">${recargoCell}</td>
+      <td class="c-punit" data-l="P. unit." style="padding:6px 8px;text-align:right">${precioCell}</td>
+      <td class="c-cant" data-l="Cant." style="padding:6px 4px;text-align:center">
         <input type="number" value="${qty}" min="1" step="0.5" onchange="setCarpetaItemProp(${i},'qty',Math.max(1,parseFloat(this.value)||1))" ${disabled} style="width:46px;height:26px;padding:0 4px;border:1px solid var(--border);border-radius:4px;background:var(--bg3);color:var(--text);font-size:13px;text-align:center;font-family:inherit">
       </td>
-      <td style="padding:6px 8px;text-align:right;font-weight:500;font-size:12px">${fmt(totalItem)}</td>
-      <td style="padding:6px 8px;text-align:right">
+      <td class="c-total" data-l="Total ítem" style="padding:6px 8px;text-align:right;font-weight:500;font-size:12px">${fmt(totalItem)}</td>
+      <td class="c-cobrado" data-l="Cobrado" style="padding:6px 8px;text-align:right">
         <input type="number" value="${cobrado||''}" min="0" step="1" placeholder="0" onclick="this.select()"
           oninput="setCarpetaCobrado(${i},this.value)"
           ${disabled}
           style="width:100px;height:26px;padding:0 6px;border:1px solid;border-radius:4px;background:var(--bg3);${cobradoStyle};font-size:12px;text-align:right;font-family:inherit">
       </td>
-      <td style="padding:6px 4px;text-align:center">
+      <td class="c-del" style="padding:6px 4px;text-align:center">
         ${carpetaActual.estado !== 'cerrada' ? `<button onclick="delCarpetaRow(${i})" style="background:none;border:none;cursor:pointer;color:#666;font-size:14px">✕</button>` : ''}
       </td>
     </tr>`;
@@ -2325,6 +2435,17 @@ function acSelCarpeta(i, pid) {
 }
 
 function acCloseCarpeta(i) { if (acDropEl) acDropEl.style.display = 'none'; }
+
+// En celular la descripción se muestra completa (texto que envuelve);
+// al tocarla aparece el buscador para cambiar el producto.
+function editCarpetaDesc(el) {
+  const wrap = el.nextElementSibling;
+  if (!wrap) return;
+  el.style.display = 'none';
+  wrap.style.display = 'block';
+  const inp = wrap.querySelector('input');
+  if (inp) { inp.focus(); inp.select(); }
+}
 
 // ── Guardar carpeta ──────────────────────────────────────────────────
 function setCarpetaNotas(v) {
