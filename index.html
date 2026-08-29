@@ -592,6 +592,13 @@ tr:hover td{background:var(--bg3)}
       <div id="rename-marca-preview" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
       <button class="btn pri" id="rename-marca-btn" onclick="renameMarcaApply()" style="display:none">Renombrar marca</button>
     </div>
+    <div class="card">
+      <h3>🔒 Congelar precios de las carpetas</h3>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Fija el precio actual de cada ítem en <strong>todas las carpetas ya creadas</strong>, para que una actualización de la lista de precios no les cambie el total. Los ítems que se agreguen de ahora en más quedan congelados solos. Corré esto <strong>antes</strong> de actualizar precios en Supabase.</p>
+      <div id="congelar-preview" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+      <button class="btn" onclick="congelarCarpetasPreview()">Ver cuántos ítems se congelarían</button>
+      <button class="btn pri" id="congelar-btn" onclick="congelarCarpetasApply()" style="display:none;margin-left:8px">Congelar precios</button>
+    </div>
   </div>
   </div>
 </div>
@@ -1980,6 +1987,80 @@ async function renameMarcaApply() {
   }
 }
 
+// ─── Congelar precios de carpetas existentes ────────────────────────
+// Recorre todas las carpetas y le pone precioFijo a los items que todavia
+// no lo tienen, usando el precio que la lista devuelve HOY.
+async function congelarCarpetasScan() {
+  const r = await db.from('carpetas').select('*');
+  if (r.error) throw new Error(r.error.message);
+  const carpetas = r.data || [];
+  let porCongelar = 0, yaCongelados = 0, manuales = 0, sinProducto = 0, carpetasTocadas = 0;
+  const cambios = [];
+  carpetas.forEach(c => {
+    const items = c.items || [];
+    let tocada = false;
+    items.forEach(item => {
+      if (item.manual) { manuales++; return; }
+      const fijo = parseFloat(item.precioFijo);
+      if (isFinite(fijo) && fijo > 0) { yaCongelados++; return; }
+      if (!item.pid) return;
+      const precio = calcCarpetaItemLive(item);
+      if (!(precio > 0)) { sinProducto++; return; }
+      item.precioFijo = precio;
+      porCongelar++; tocada = true;
+    });
+    if (tocada) { cambios.push(c); carpetasTocadas++; }
+  });
+  return { cambios, porCongelar, yaCongelados, manuales, sinProducto, carpetasTocadas, total: carpetas.length };
+}
+
+async function congelarCarpetasPreview() {
+  const div = document.getElementById('congelar-preview');
+  const btn = document.getElementById('congelar-btn');
+  div.textContent = 'Revisando carpetas...';
+  btn.style.display = 'none';
+  try {
+    const s = await congelarCarpetasScan();
+    div.innerHTML = `Carpetas totales: <strong>${s.total}</strong><br>
+      Ítems a congelar: <strong style="color:var(--accent)">${s.porCongelar}</strong> en ${s.carpetasTocadas} carpeta${s.carpetasTocadas!==1?'s':''}<br>
+      Ya congelados: ${s.yaCongelados} · Manuales (no aplica): ${s.manuales}` +
+      (s.sinProducto ? `<br><span style="color:var(--yellow)">Sin producto asociado (quedan sin congelar): ${s.sinProducto}</span>` : '');
+    if (s.porCongelar > 0) btn.style.display = 'inline-block';
+  } catch(e) {
+    div.textContent = 'Error: ' + e.message;
+  }
+}
+
+async function congelarCarpetasApply() {
+  const btn = document.getElementById('congelar-btn');
+  const div = document.getElementById('congelar-preview');
+  if (!confirm('Se va a fijar el precio actual de los ítems de todas las carpetas. ¿Seguimos?')) return;
+  btn.disabled = true; btn.textContent = 'Congelando...';
+  try {
+    const s = await congelarCarpetasScan();
+    let ok = 0, fallaron = 0;
+    for (const c of s.cambios) {
+      const up = await db.from('carpetas')
+        .update({ items: c.items, updated_at: new Date().toISOString() })
+        .eq('id', c.id);
+      if (up.error) { fallaron++; console.error('Carpeta ' + c.id + ':', up.error.message); }
+      else ok++;
+    }
+    div.innerHTML = `✓ Listo. Carpetas actualizadas: <strong>${ok}</strong>` +
+      (fallaron ? ` · <span style="color:#f87171">Fallaron: ${fallaron} (mirá la consola)</span>` : '') +
+      `<br>Ítems congelados: <strong>${s.porCongelar}</strong>`;
+    toast(fallaron ? `Congelado con ${fallaron} error(es)` : '✓ Precios de carpetas congelados', !fallaron);
+    if (!fallaron) btn.style.display = 'none';
+    if (carpetaActual) { await abrirCarpeta(carpetaActual.id); }
+    renderCarpetasLista();
+  } catch(e) {
+    div.textContent = 'Error: ' + e.message;
+    toast('Error: ' + e.message, false);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Congelar precios';
+  }
+}
+
 function renderAdmin() {
   if (!adminUnlocked) return;
   const q = (document.getElementById('qa')?.value || '').toLowerCase();
@@ -2145,11 +2226,31 @@ function calcCarpetaCobrado(items) {
   return items.reduce((sum, item) => sum + (parseFloat(item.cobrado)||0), 0);
 }
 
-function calcCarpetaItemFinal(item) {
+// Precio "vivo": el que sale de la lista de precios en este momento.
+function calcCarpetaItemLive(item) {
   const p = products.find(x => x.id === item.pid);
   if (!p) return 0;
   const recargo = (item.recargo !== undefined && item.recargo !== null) ? item.recargo : cfg.recargo;
   return calcFinal(p, recargo);
+}
+
+// Precio del item dentro de la carpeta.
+// Si el item tiene precioFijo, se usa ese: asi una actualizacion de la lista
+// de precios no altera el total de una carpeta ya armada.
+// Los items viejos (sin precioFijo) siguen calculandose como antes.
+function calcCarpetaItemFinal(item) {
+  if (!item) return 0;
+  const fijo = parseFloat(item.precioFijo);
+  if (isFinite(fijo) && fijo > 0) return fijo;
+  return calcCarpetaItemLive(item);
+}
+
+// Congela el precio actual del item. Se llama al elegir el producto
+// y al cambiar el recargo de la fila.
+function fijarPrecioItem(item) {
+  if (!item || item.manual) return;
+  if (!item.pid) { delete item.precioFijo; return; }
+  item.precioFijo = calcCarpetaItemLive(item);
 }
 
 // ── Nueva carpeta ────────────────────────────────────────────────────
@@ -2234,7 +2335,7 @@ function renderCarpetaItems() {
       marcaHTML = '<span style="background:#3d2c00;color:#fbbf24;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:700">Manual</span>';
     } else {
       const p = products.find(x => x.id === item.pid);
-      fin = p ? calcFinal(p, recargo) : 0;
+      fin = calcCarpetaItemFinal(item);
       descHTML = `${p ? `<div class="desc-txt" onclick="editCarpetaDesc(this)">${p.descripcion}</div>` : ''}
         <div class="ac-wrap" id="cacwrap-${i}">
           <input class="ac-input" type="text" value="${p ? p.descripcion : ''}" placeholder="Buscar producto..."
@@ -2298,11 +2399,7 @@ function calcCarpetaTotales() {
   const items = carpetaActual.items || [];
   let total = 0, cobrado = 0;
   items.forEach(item => {
-    const recargo = item.recargo !== undefined ? item.recargo : cfg.recargo;
-    const fin = item.manual ? (parseFloat(item.manualPrecio)||0) : (() => {
-      const p = products.find(x => x.id === item.pid);
-      return p ? calcFinal(p, recargo) : 0;
-    })();
+    const fin = item.manual ? (parseFloat(item.manualPrecio)||0) : calcCarpetaItemFinal(item);
     const qty = parseFloat(item.qty) || 1;
     total += fin * qty;
     cobrado += parseFloat(item.cobrado) || 0;
@@ -2354,6 +2451,8 @@ function setCarpetaItemProp(i, prop, val) {
   // For qty and recargo: update data and re-render
   if (!carpetaActual) return;
   carpetaActual.items[i][prop] = val;
+  // Si Fernando cambia el recargo a mano, el precio se recalcula y se vuelve a congelar.
+  if (prop === 'recargo') fijarPrecioItem(carpetaActual.items[i]);
   guardaCarpeta();
   renderCarpetaItems();
 }
@@ -2372,10 +2471,9 @@ function setCarpetaCobrado(i, val) {
   const rows = document.getElementById('tb-carpeta').querySelectorAll('tr');
   if (rows[i]) {
     const cells = rows[i].querySelectorAll('td');
-    const recargo = carpetaActual.items[i].recargo !== undefined ? carpetaActual.items[i].recargo : cfg.recargo;
     const fin = carpetaActual.items[i].manual
       ? (parseFloat(carpetaActual.items[i].manualPrecio)||0)
-      : (() => { const p = products.find(x => x.id === carpetaActual.items[i].pid); return p ? calcFinal(p, recargo) : 0; })();
+      : calcCarpetaItemFinal(carpetaActual.items[i]);
     const qty = parseFloat(carpetaActual.items[i].qty) || 1;
     const totalItem = fin * qty;
     const pendiente = totalItem - cobrado;
@@ -2430,6 +2528,7 @@ function acSelCarpeta(i, pid) {
   carpetaActual.items[i].pid = pid;
   const p = products.find(x => x.id === pid);
   carpetaActual.items[i].recargo = getDefaultRecargo(p ? p.marca : '');
+  fijarPrecioItem(carpetaActual.items[i]);
   guardaCarpeta();
   renderCarpetaItems();
 }
@@ -2505,7 +2604,6 @@ function imprimirCarpeta() {
   const estadoCarpeta = carpetaActual.estado === 'cerrada' ? 'CERRADA' : 'EN CURSO';
 
   const filas = items.map(function(item) {
-    const recargo = item.recargo !== undefined ? item.recargo : cfg.recargo;
     let desc = '', fin = 0;
     if (item.manual === true) {
       desc = item.manualDesc || '(sin descripcion)';
@@ -2513,7 +2611,7 @@ function imprimirCarpeta() {
     } else {
       const p = products.find(function(x) { return x.id === item.pid; });
       desc = p ? p.descripcion : '(producto)';
-      fin = p ? calcFinal(p, recargo) : 0;
+      fin = calcCarpetaItemFinal(item);
     }
     const qty = parseFloat(item.qty) || 1;
     const totalItem = fin * qty;
