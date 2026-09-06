@@ -1235,6 +1235,8 @@ function getDefaultRecargo(marca) {
   // Las excepciones van primero: mandan sobre la regla de Puente.
   if (m === 'CANDELA') return 75;
   if (m === 'TREFILCON') return 50;
+  // VARKAUS no viene de Puente, pero Fernando le puso el mismo recargo.
+  if (m === 'VARKAUS') return 55;
   if (MARCAS_PUENTE.has(m)) return 55;
   return cfg.recargo;
 }
